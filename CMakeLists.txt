@@ -1,10 +1,10 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.5)
 
 # *******************************************
 # ************* CMake Content ***************
 # *******************************************
 # This CMake create a workspace containing the following projects
-# 
+#
 # Programs
 #  - stereo
 
@@ -62,7 +62,7 @@ if (WIN32)
 		${SDL2DIR}/bin/*.dll
 		${SDL2DIR}/lib/*.dll
 	)
-	
+
 	MESSAGE("Copy SDL DLLs into ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 	if(NOT ${CMAKE_GENERATOR} MATCHES "Visual Studio.*")
 		file(COPY ${SDL2_DLL} DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
@@ -96,7 +96,7 @@ if (WIN32)
 		${SDL2TTFDIR}/bin/*.dll
 		${SDL2TTFDIR}/lib/*.dll
 	)
-	
+
 	MESSAGE("Copy SDL2_ttf DLLs into ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 	if(NOT ${CMAKE_GENERATOR} MATCHES "Visual Studio.*")
 		file(COPY ${SDL2TTF_DLL} DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
