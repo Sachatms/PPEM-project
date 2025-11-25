@@ -9,6 +9,7 @@
 */
 
 #include "yuv2RGB.h"
+#include "omp.h"
 
 #define YUV2RGB_COEF_R  1.13983
 #define YUV2RGB_COEF_G1 0.39465
@@ -19,6 +20,7 @@
 
 void yuv2rgb(int width, int height, unsigned char *y, unsigned char *u, unsigned char *v, unsigned char *rgb){
     int i,j;
+#pragma omp parallel for private(i, j) schedule(static)
     for(i=0; i< height; i++){
         for(j=0; j < width; j++){
 			int idx = i*width + j;
