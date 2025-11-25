@@ -1,0 +1,55 @@
+# Build directories
+bin/
+build/
+Debug/
+Release/
+x64/
+*.dir/
+lib
+dat
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln
+
+# Compiled Object files
+*.o
+*.obj
+*.exe
+*.out
+*.app
+
+# Libraries
+*.lib
+*.a
+*.so
+*.dylib
+*.dll
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# IDE
+.vscode/
+.idea/
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Output files
+*.log
+*.txt.user
+
+# Large data files (keep source data)
+# Uncomment if dat/ folder contains generated files
+# dat/*.yuv
