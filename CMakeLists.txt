@@ -141,3 +141,9 @@ file(
 
 add_executable( stereo ${source_files} ${header_files})
 target_link_libraries(stereo ${SDL2_LIBRARY} ${SDL2TTF_LIBRARY})
+
+# Link the math library on Unix-like platforms to resolve symbols like exp(),
+# which are provided by libm. On Windows this is not needed.
+if(UNIX)
+	target_link_libraries(stereo m)
+endif()
