@@ -1,4 +1,5 @@
 # Build directories
+bin/
 build/
 Debug/
 Release/
@@ -46,6 +47,7 @@ Thumbs.db
 # Output files
 *.log
 *.txt.user
+md5.txt
 
 # Large data files (keep source data)
 # Uncomment if dat/ folder contains generated files
