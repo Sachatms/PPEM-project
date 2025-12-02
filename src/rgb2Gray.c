@@ -9,7 +9,6 @@
 */
 
 #include "rgb2Gray.h"
-#include "omp.h"
 
 #define RGB2GRAY_COEF_R 0.29893602129378f
 #define RGB2GRAY_COEF_G 0.58704307445112f
