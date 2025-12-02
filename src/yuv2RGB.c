@@ -9,7 +9,6 @@
 */
 
 #include "yuv2RGB.h"
-#include "omp.h"
 
 #define YUV2RGB_COEF_R  1.13983
 #define YUV2RGB_COEF_G1 0.39465
