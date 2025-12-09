@@ -40,9 +40,11 @@ static int parse_positive_int(const char* s) {
 int main(int argc, char** argv) {
 	printf("Stereo Matching App\n");
 
-	/* --- OpenMP thread configuration --- */
+	/* --- OpenMP thread configuration & bench/batch options --- */
 	int cli_threads = -1;
-	int bench_frames = 0; // 0 = no benchmark mode
+	int bench_frames = 0; // legacy bench mode: 0 = no bench
+	int batches = 0;      // number of batches (if >0 batch mode enabled)
+	int batch_size = 70;  // default batch size
 	for (int i = 1; i < argc; ++i) {
 		const char* arg = argv[i];
 		if (strncmp(arg, "--threads=", 10) == 0) {
@@ -62,6 +64,45 @@ int main(int argc, char** argv) {
 			}
 			else {
 				fprintf(stderr, "--threads requires a numeric argument\n");
+			}
+		}
+		else if (strncmp(arg, "--bench=", 8) == 0) {
+			bench_frames = parse_positive_int(arg + 8);
+			if (bench_frames < 0) bench_frames = 0;
+		}
+		else if (strcmp(arg, "--bench") == 0) {
+			if (i + 1 < argc) {
+				bench_frames = parse_positive_int(argv[++i]);
+				if (bench_frames < 0) bench_frames = 0;
+			}
+			else {
+				fprintf(stderr, "--bench requires a numeric argument\n");
+			}
+		}
+		else if (strncmp(arg, "--batches=", 10) == 0) {
+			batches = parse_positive_int(arg + 10);
+			if (batches < 0) batches = 0;
+		}
+		else if (strcmp(arg, "--batches") == 0) {
+			if (i + 1 < argc) {
+				batches = parse_positive_int(argv[++i]);
+				if (batches < 0) batches = 0;
+			}
+			else {
+				fprintf(stderr, "--batches requires a numeric argument\n");
+			}
+		}
+		else if (strncmp(arg, "--batch-size=", 13) == 0) {
+			batch_size = parse_positive_int(arg + 13);
+			if (batch_size <= 0) batch_size = 70;
+		}
+		else if (strcmp(arg, "--batch-size") == 0 || strcmp(arg, "--batchsize") == 0) {
+			if (i + 1 < argc) {
+				batch_size = parse_positive_int(argv[++i]);
+				if (batch_size <= 0) batch_size = 70;
+			}
+			else {
+				fprintf(stderr, "--batch-size requires a numeric argument\n");
 			}
 		}
 	}
@@ -112,18 +153,15 @@ int main(int argc, char** argv) {
 	if (env) printf("Environment OMP_NUM_THREADS=\"%s\"\n", env);
 
 	/* Verification test: run a simple parallel region and count actual threads */
-	volatile int seen = 0;
 #pragma omp parallel
 	{
-#pragma omp atomic
-		seen++;
-#pragma omp barrier
 #pragma omp single
 		{
-			printf("OpenMP verification: parallel region observed %d threads\n", seen);
-			if (seen != selected_threads) {
+			int runtime_threads = omp_get_num_threads();
+			printf("OpenMP verification: parallel region observed %d threads\n", runtime_threads);
+			if (runtime_threads != selected_threads) {
 				fprintf(stderr, "Warning: requested %d threads but observed %d threads\n",
-					selected_threads, seen);
+					selected_threads, runtime_threads);
 			}
 		}
 	}
@@ -138,84 +176,167 @@ int main(int argc, char** argv) {
 	displayRGBInit(0, HEIGHT, WIDTH);
 	displayRGBInit(1, HEIGHT, WIDTH);
 
-	// benchmarking support: run limited number of frames if bench_frames>0
-	int frames_processed = 0;
-	double bench_t0 = 0.0;
-	if (bench_frames > 0) bench_t0 = omp_get_wtime();
+	// If batch mode requested, run batches; otherwise fall back to bench or interactive
+	if (batches > 0) {
+		for (int b = 0; b < batches && !stopThreads; ++b) {
+			int frames_processed = 0;
+			double batch_t0 = omp_get_wtime();
 
-	while (!stopThreads && (bench_frames == 0 || frames_processed < bench_frames)) {
+			while (!stopThreads && frames_processed < batch_size) {
 
-		// Read images
-		static unsigned char yL[HEIGHT * WIDTH], uL[HEIGHT * WIDTH / 4], vL[HEIGHT * WIDTH / 4];
-		static unsigned char yR[HEIGHT * WIDTH], uR[HEIGHT * WIDTH / 4], vR[HEIGHT * WIDTH / 4];
-		readYUV(0, WIDTH, HEIGHT, yL, uL, vL);
-		readYUV(1, WIDTH, HEIGHT, yR, uR, vR);
+				// Read images
+				static unsigned char yL[HEIGHT * WIDTH], uL[HEIGHT * WIDTH / 4], vL[HEIGHT * WIDTH / 4];
+				static unsigned char yR[HEIGHT * WIDTH], uR[HEIGHT * WIDTH / 4], vR[HEIGHT * WIDTH / 4];
+				readYUV(0, WIDTH, HEIGHT, yL, uL, vL);
+				readYUV(1, WIDTH, HEIGHT, yR, uR, vR);
 
-		// Convert images to RGB
-		static unsigned char rgbL[HEIGHT * WIDTH * 3], rgbR[HEIGHT * WIDTH * 3];
-		yuv2rgb(WIDTH, HEIGHT, yL, uL, vL, rgbL);
-		yuv2rgb(WIDTH, HEIGHT, yR, uR, vR, rgbR);
+				// Convert images to RGB
+				static unsigned char rgbL[HEIGHT * WIDTH * 3], rgbR[HEIGHT * WIDTH * 3];
+				yuv2rgb(WIDTH, HEIGHT, yL, uL, vL, rgbL);
+				yuv2rgb(WIDTH, HEIGHT, yR, uR, vR, rgbR);
 
-		// Convert to gray
-		static float grayL[HEIGHT * WIDTH], grayR[HEIGHT * WIDTH];
-		rgb2Gray(HEIGHT * WIDTH, rgbL, grayL);
-		rgb2Gray(HEIGHT * WIDTH, rgbR, grayR);
+				// Convert to gray
+				static float grayL[HEIGHT * WIDTH], grayR[HEIGHT * WIDTH];
+				rgb2Gray(HEIGHT * WIDTH, rgbL, grayL);
+				rgb2Gray(HEIGHT * WIDTH, rgbR, grayR);
 
-		// Census
-		static unsigned char cenL[HEIGHT * WIDTH], cenR[HEIGHT * WIDTH];
-		census(HEIGHT, WIDTH, grayL, cenL);
-		census(HEIGHT, WIDTH, grayR, cenR);
+				// Census
+				static unsigned char cenL[HEIGHT * WIDTH], cenR[HEIGHT * WIDTH];
+				census(HEIGHT, WIDTH, grayL, cenL);
+				census(HEIGHT, WIDTH, grayR, cenR);
 
-		// Pre-compute weights for offset aggregation
-		int offsets[NB_ITERATIONS];
-		static float weightsHor[NB_ITERATIONS * HEIGHT * WIDTH * 3], weightsVert[NB_ITERATIONS * HEIGHT * WIDTH * 3];
-		offsetGen(NB_ITERATIONS, offsets);
-		for (unsigned idx = 0; idx < NB_ITERATIONS; idx++) {
-			computeWeights(HEIGHT, WIDTH, 0, offsets + idx, rgbL, weightsHor + idx * (3 * HEIGHT * WIDTH));
-			computeWeights(HEIGHT, WIDTH, 1, offsets + idx, rgbL, weightsVert + idx * (3 * HEIGHT * WIDTH));
-		}
+				// Pre-compute weights for offset aggregation
+				int offsets[NB_ITERATIONS];
+				static float weightsHor[NB_ITERATIONS * HEIGHT * WIDTH * 3], weightsVert[NB_ITERATIONS * HEIGHT * WIDTH * 3];
+				offsetGen(NB_ITERATIONS, offsets);
+				for (unsigned idx = 0; idx < NB_ITERATIONS; idx++) {
+					computeWeights(HEIGHT, WIDTH, 0, offsets + idx, rgbL, weightsHor + idx * (3 * HEIGHT * WIDTH));
+					computeWeights(HEIGHT, WIDTH, 1, offsets + idx, rgbL, weightsVert + idx * (3 * HEIGHT * WIDTH));
+				}
 
-		// Find for each pixel, the disparity level minimizing the aggregated costs.
-		static unsigned char depthMap[HEIGHT * WIDTH];
-		memset(depthMap, 0, HEIGHT * WIDTH*sizeof(char));
-		static float bestCost[HEIGHT * WIDTH];
+				// Find for each pixel, the disparity level minimizing the aggregated costs.
+				static unsigned char depthMap[HEIGHT * WIDTH];
+				memset(depthMap, 0, HEIGHT * WIDTH*sizeof(char));
+				static float bestCost[HEIGHT * WIDTH];
 
-		// For each degree of disparity
-		for (char disp = MIN_DISPARITY; disp <= MAX_DISPARITY; disp++) {
+				// For each degree of disparity
+				for (char disp = MIN_DISPARITY; disp <= MAX_DISPARITY; disp++) {
 
-			// Cost construction
-			static float dispError[HEIGHT * WIDTH];
-			costConstruction(HEIGHT, WIDTH, 12 /*Magic number*/, &disp, grayL, grayR, cenL, cenR, dispError);
+					// Cost construction
+					static float dispError[HEIGHT * WIDTH];
+					costConstruction(HEIGHT, WIDTH, 12 /*Magic number*/, &disp, grayL, grayR, cenL, cenR, dispError);
 
-			static float aggregatedDisparityCost[HEIGHT * WIDTH];
-			aggregateCost(HEIGHT, WIDTH, NB_ITERATIONS, dispError, offsets, weightsHor, weightsVert, aggregatedDisparityCost);
+					static float aggregatedDisparityCost[HEIGHT * WIDTH];
+					aggregateCost(HEIGHT, WIDTH, NB_ITERATIONS, dispError, offsets, weightsHor, weightsVert, aggregatedDisparityCost);
 
-			if (disp == MIN_DISPARITY) {
-				memcpy(bestCost, aggregatedDisparityCost, HEIGHT * WIDTH * sizeof(float));
+					if (disp == MIN_DISPARITY) {
+						memcpy(bestCost, aggregatedDisparityCost, HEIGHT * WIDTH * sizeof(float));
+					}
+					else {
+						// Compare the current disparity cost to previous ones
+						disparitySelect(HEIGHT, WIDTH, 12, MIN_DISPARITY, &disp, aggregatedDisparityCost, bestCost, depthMap);
+					}
+				}
+
+				// Apply median filter on result
+				static unsigned char filteredDepthMap[HEIGHT * WIDTH];
+				medianFilter(HEIGHT, WIDTH, 1, depthMap, filteredDepthMap);
+
+				// Display
+				displayRGB(0, HEIGHT, WIDTH, rgbL);
+				displayLum(1, filteredDepthMap);
+
+				// MD5
+				MD5_Update(HEIGHT * WIDTH * sizeof(char), filteredDepthMap);
+				frames_processed++;
 			}
-			else {
-				// Compare the current disparity cost to previous ones
-				disparitySelect(HEIGHT, WIDTH, 12, MIN_DISPARITY, &disp, aggregatedDisparityCost, bestCost, depthMap);
-			}
+
+			double batch_t1 = omp_get_wtime();
+			double total = batch_t1 - batch_t0;
+			printf("Batch %d/%d: frames=%d total_time=%.6f s avg_ms_per_frame=%.3f FPS=%.2f\n",
+				b+1, batches, frames_processed, total, (total * 1000.0) / frames_processed, frames_processed / total);
 		}
-
-		// Apply median filter on result
-		static unsigned char filteredDepthMap[HEIGHT * WIDTH];
-		medianFilter(HEIGHT, WIDTH, 1, depthMap, filteredDepthMap);
-
-		// Display
-		displayRGB(0, HEIGHT, WIDTH, rgbL);
-		displayLum(1, filteredDepthMap);
-
-		// MD5
-		MD5_Update(HEIGHT * WIDTH * sizeof(char), filteredDepthMap);
-		frames_processed++;
 	}
-	if (bench_frames > 0) {
-		double bench_t1 = omp_get_wtime();
-		double total = bench_t1 - bench_t0;
-		printf("Benchmark: frames=%d total_time=%.6f s avg_ms_per_frame=%.3f FPS=%.2f\n",
-			frames_processed, total, (total * 1000.0) / frames_processed, frames_processed / total);
+	else {
+		// legacy behavior: bench_frames or interactive loop
+		int frames_processed = 0;
+		double bench_t0 = 0.0;
+		if (bench_frames > 0) bench_t0 = omp_get_wtime();
+
+		while (!stopThreads && (bench_frames == 0 || frames_processed < bench_frames)) {
+
+			// Read images
+			static unsigned char yL[HEIGHT * WIDTH], uL[HEIGHT * WIDTH / 4], vL[HEIGHT * WIDTH / 4];
+			static unsigned char yR[HEIGHT * WIDTH], uR[HEIGHT * WIDTH / 4], vR[HEIGHT * WIDTH / 4];
+			readYUV(0, WIDTH, HEIGHT, yL, uL, vL);
+			readYUV(1, WIDTH, HEIGHT, yR, uR, vR);
+
+			// Convert images to RGB
+			static unsigned char rgbL[HEIGHT * WIDTH * 3], rgbR[HEIGHT * WIDTH * 3];
+			yuv2rgb(WIDTH, HEIGHT, yL, uL, vL, rgbL);
+			yuv2rgb(WIDTH, HEIGHT, yR, uR, vR, rgbR);
+
+			// Convert to gray
+			static float grayL[HEIGHT * WIDTH], grayR[HEIGHT * WIDTH];
+			rgb2Gray(HEIGHT * WIDTH, rgbL, grayL);
+			rgb2Gray(HEIGHT * WIDTH, rgbR, grayR);
+
+			// Census
+			static unsigned char cenL[HEIGHT * WIDTH], cenR[HEIGHT * WIDTH];
+			census(HEIGHT, WIDTH, grayL, cenL);
+			census(HEIGHT, WIDTH, grayR, cenR);
+
+			// Pre-compute weights for offset aggregation
+			int offsets[NB_ITERATIONS];
+			static float weightsHor[NB_ITERATIONS * HEIGHT * WIDTH * 3], weightsVert[NB_ITERATIONS * HEIGHT * WIDTH * 3];
+			offsetGen(NB_ITERATIONS, offsets);
+			for (unsigned idx = 0; idx < NB_ITERATIONS; idx++) {
+				computeWeights(HEIGHT, WIDTH, 0, offsets + idx, rgbL, weightsHor + idx * (3 * HEIGHT * WIDTH));
+				computeWeights(HEIGHT, WIDTH, 1, offsets + idx, rgbL, weightsVert + idx * (3 * HEIGHT * WIDTH));
+			}
+
+			// Find for each pixel, the disparity level minimizing the aggregated costs.
+			static unsigned char depthMap[HEIGHT * WIDTH];
+			memset(depthMap, 0, HEIGHT * WIDTH*sizeof(char));
+			static float bestCost[HEIGHT * WIDTH];
+
+			// For each degree of disparity
+			for (char disp = MIN_DISPARITY; disp <= MAX_DISPARITY; disp++) {
+
+				// Cost construction
+				static float dispError[HEIGHT * WIDTH];
+				costConstruction(HEIGHT, WIDTH, 12 /*Magic number*/, &disp, grayL, grayR, cenL, cenR, dispError);
+
+				static float aggregatedDisparityCost[HEIGHT * WIDTH];
+				aggregateCost(HEIGHT, WIDTH, NB_ITERATIONS, dispError, offsets, weightsHor, weightsVert, aggregatedDisparityCost);
+
+				if (disp == MIN_DISPARITY) {
+					memcpy(bestCost, aggregatedDisparityCost, HEIGHT * WIDTH * sizeof(float));
+				}
+				else {
+					// Compare the current disparity cost to previous ones
+					disparitySelect(HEIGHT, WIDTH, 12, MIN_DISPARITY, &disp, aggregatedDisparityCost, bestCost, depthMap);
+				}
+			}
+
+			// Apply median filter on result
+			static unsigned char filteredDepthMap[HEIGHT * WIDTH];
+			medianFilter(HEIGHT, WIDTH, 1, depthMap, filteredDepthMap);
+
+			// Display
+			displayRGB(0, HEIGHT, WIDTH, rgbL);
+			displayLum(1, filteredDepthMap);
+
+			// MD5
+			MD5_Update(HEIGHT * WIDTH * sizeof(char), filteredDepthMap);
+			frames_processed++;
+		}
+		if (bench_frames > 0) {
+			double bench_t1 = omp_get_wtime();
+			double total = bench_t1 - bench_t0;
+			printf("Benchmark: frames=%d total_time=%.6f s avg_ms_per_frame=%.3f FPS=%.2f\n",
+				frames_processed, total, (total * 1000.0) / frames_processed, frames_processed / total);
+		}
 	}
 
 	return 0;
