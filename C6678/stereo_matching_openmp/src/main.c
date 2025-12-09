@@ -38,10 +38,22 @@ int main(void) {
 	int frameCount = 0;
 	unsigned int totalTime = 0;
 	int nthreads;
+	int actualThreads = 0;
 
 	/* Configure OpenMP thread count */
 	omp_set_num_threads(NUM_THREADS);
-	nthreads = omp_get_max_threads();
+	
+	/* Force OpenMP runtime initialization and verify threads */
+	#pragma omp parallel
+	{
+		#pragma omp atomic
+		actualThreads++;
+		
+		#pragma omp master
+		{
+			nthreads = omp_get_num_threads();
+		}
+	}
 
 	printf("==============================================\n");
 	printf("Stereo Matching App - C6678 OpenMP Version\n");
@@ -49,7 +61,7 @@ int main(void) {
 	printf("Image size: %d x %d\n", WIDTH, HEIGHT);
 	printf("Disparity range: [%d, %d]\n", MIN_DISPARITY, MAX_DISPARITY);
 	printf("Number of frames: %d\n", NB_FRAME);
-	printf("OpenMP threads: %d\n", nthreads);
+	printf("OpenMP threads: %d (requested: %d, actual: %d)\n", nthreads, NUM_THREADS, actualThreads);
 	printf("==============================================\n\n");
 
 	/* Open YUV Files (left & right) */
