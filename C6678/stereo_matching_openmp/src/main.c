@@ -46,7 +46,7 @@ int main(void) {
 	startTiming(0);
 
 	/* Process NB_FRAME frames */
-	while (frameCount < NB_FRAME) {
+	while (frameCount < 3 * NB_FRAME) {
 
 		/* Start frame timing */
 		startTiming(1);
@@ -126,7 +126,7 @@ int main(void) {
 		unsigned int frameTime = stopTiming(1);
 
 		frameCount++;
-		printf("Frame %3d processed in %u us\n", frameCount, frameTime);
+		printf("Frame %3d processed in %u us\n", frameCount % NB_FRAME, frameTime);
 	}
 
 	/* Total timing */
