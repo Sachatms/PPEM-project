@@ -11,6 +11,7 @@
 
 #include "costConstruction.h"
 #include <math.h>
+#include <stdio.h>
 #include <ti/runtime/openmp/omp.h>
 
 #define min(x,y) (((x)<(y))?(x):(y))
@@ -42,6 +43,24 @@ void costConstruction (int height, int width, float truncValue,
     int idx;
     int totalPixels = height * width;
     char disp = *disparity;
+    
+    /* Debug: track which threads are actually doing work */
+    static int firstCall = 1;
+    if (firstCall) {
+        int threadCount[8] = {0,0,0,0,0,0,0,0};
+        #pragma omp parallel for schedule(static)
+        for(idx = 0; idx < 800; idx++) {
+            int tid = omp_get_thread_num();
+            #pragma omp atomic
+            threadCount[tid]++;
+        }
+        printf("DEBUG: Thread distribution test (800 iters): ");
+        for(idx = 0; idx < 8; idx++) {
+            printf("T%d=%d ", idx, threadCount[idx]);
+        }
+        printf("\n");
+        firstCall = 0;
+    }
 
     /* OpenMP parallelization: each thread processes a chunk of pixels
      * Using schedule(static) for deterministic results (MD5 validation) */
