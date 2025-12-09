@@ -2,7 +2,7 @@
 	============================================================================
 	Name        : aggregateCost.c
 	Author      : kdesnos, JZHAHG
-	Version     : 1.0
+	Version     : 1.1 - OpenMP parallelized for C6678
 	Copyright   : CeCILL-C, IETR, INSA Rennes
 	Description : Aggregate the horizontal and vertical disparity error for
                   several offsets.
@@ -11,6 +11,7 @@
 
 #include "aggregateCost.h"
 #include <string.h>
+#include <ti/runtime/openmp/omp.h>
 
 #define min(x,y) (((x)<(y))?(x):(y))
 #define max(x,y) (((x)<(y))?(y):(x))
@@ -20,7 +21,8 @@ void aggregateCost (int height , int width, int nbIterations,
 					float *hWeights, float *vWeights,
 					float *aggregatedDisparity){
     int offsetIdx;
-	int i,j;
+	int idx;
+	int totalPixels = height * width;
 
     /* For each of the offset, do the horizontal and vertical aggregation */
     for(offsetIdx=0; offsetIdx< 2*nbIterations; offsetIdx++){
@@ -39,24 +41,26 @@ void aggregateCost (int height , int width, int nbIterations,
 		float *src = (offsetIdx%2 == 0)? disparityError: aggregatedDisparity;
 		float *dest = (offsetIdx%2 == 0)? aggregatedDisparity: disparityError;
 
-        /* Scan the image pixels */
-		for(j=0; j<height; j++){
-			for(i=0; i<width; i++){
-				float costM, costP, costO;
-				float weightM, weightP, weightO;
+        /* OpenMP parallelization: parallelize the inner pixel loop
+         * Using schedule(static) for deterministic results */
+		#pragma omp parallel for schedule(static)
+		for(idx = 0; idx < totalPixels; idx++){
+			int i = idx % width;
+			int j = idx / width;
+			float costM, costP, costO;
+			float weightM, weightP, weightO;
 
-				/* Get the costs of the pixels */
-				costO = src[j*width+i];
-				costM = src[max(j-vOffset,0)*width+max(i-hOffset,0)];
-				costP = src[min(j+vOffset,height-1)*width+min(i+hOffset,width-1)];
+			/* Get the costs of the pixels */
+			costO = src[j*width+i];
+			costM = src[max(j-vOffset,0)*width+max(i-hOffset,0)];
+			costP = src[min(j+vOffset,height-1)*width+min(i+hOffset,width-1)];
 
-				/* Get the weights */
-				weightO = weights[weightIdx + 3*(j*width+i)];
-				weightM = weights[weightIdx + 3*(j*width+i)+1];
-				weightP = weights[weightIdx + 3*(j*width+i)+2];
+			/* Get the weights */
+			weightO = weights[weightIdx + 3*(j*width+i)];
+			weightM = weights[weightIdx + 3*(j*width+i)+1];
+			weightP = weights[weightIdx + 3*(j*width+i)+2];
 
-				dest[j*width+i] = weightO*costO+weightM*costM+weightP*costP;
-			}
+			dest[j*width+i] = weightO*costO+weightM*costM+weightP*costP;
 		}
     }
 

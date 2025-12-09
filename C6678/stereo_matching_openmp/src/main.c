@@ -12,6 +12,9 @@
 #include <string.h>
 #include <float.h>
 
+/* TI OpenMP Runtime */
+#include <ti/runtime/openmp/omp.h>
+
 #include "params.h"
 #include "yuvRead.h"
 #include "yuv2RGB.h"
@@ -26,16 +29,27 @@
 #include "md5.h"
 #include "clock.h"
 
+/* Number of OpenMP threads (C6678 has 8 cores) */
+#ifndef NUM_THREADS
+#define NUM_THREADS 8
+#endif
+
 int main(void) {
 	int frameCount = 0;
 	unsigned int totalTime = 0;
+	int nthreads;
+
+	/* Configure OpenMP thread count */
+	omp_set_num_threads(NUM_THREADS);
+	nthreads = omp_get_max_threads();
 
 	printf("==============================================\n");
-	printf("Stereo Matching App - C6678 Sequential Version\n");
+	printf("Stereo Matching App - C6678 OpenMP Version\n");
 	printf("==============================================\n");
 	printf("Image size: %d x %d\n", WIDTH, HEIGHT);
 	printf("Disparity range: [%d, %d]\n", MIN_DISPARITY, MAX_DISPARITY);
 	printf("Number of frames: %d\n", NB_FRAME);
+	printf("OpenMP threads: %d\n", nthreads);
 	printf("==============================================\n\n");
 
 	/* Open YUV Files (left & right) */
