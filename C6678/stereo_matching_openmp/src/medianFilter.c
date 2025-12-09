@@ -39,21 +39,21 @@ void quickSort(int startIdx, int endIdx, unsigned char *values){
 		quickSortPartition(startIdx, endIdx, &pivotIdx, values);
 		quickSort(startIdx,pivotIdx-1,values);
 		quickSort(pivotIdx+1,endIdx,values);
-	}	
+	}
 }
 
-void medianFilter (int height , int width, int topDownBorderSize, 
+void medianFilter (int height , int width, int topDownBorderSize,
                    unsigned char *rawDisparity,
 				   unsigned char *filteredDisparity)
-{	
+{
 	int i,j;
 	int k,l;
-	
+
 	/* Process pixels one by one */
 	for(j=topDownBorderSize; j< height-topDownBorderSize; j++){
 		for(i=0;i<width;i++){
 			unsigned char pixels[9];
-			
+
 			/* Output pixel is the median of a 3x3 window
 			   Get the 9 pixels */
 			for(l=-1;l<=1;l++){

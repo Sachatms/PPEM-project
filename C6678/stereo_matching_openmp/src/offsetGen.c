@@ -4,7 +4,7 @@
 	Author      : kdesnos
 	Version     : 1.0
 	Copyright   : CeCILL-C, IETR, INSA Rennes
-	Description : Generation of an array of the offsets used in the 
+	Description : Generation of an array of the offsets used in the
 	              computation of the depth map.
 	============================================================================
 */
@@ -18,6 +18,6 @@ void offsetGen (int nbIterations, int *offsets){
 	for(i=0; i< nbIterations; i++){
 		offsets[i] = 2*sum + 1;
 		sum += offsets[i];
-		offsets[i] %= 32;  
+		offsets[i] %= 32;
 	}
 }

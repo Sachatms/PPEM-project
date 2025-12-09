@@ -4,7 +4,7 @@
 	Author      : kdesnos, JZHAHG
 	Version     : 1.0
 	Copyright   : CeCILL-C, IETR, INSA Rennes
-	Description : Aggregate the horizontal and vertical disparity error for 
+	Description : Aggregate the horizontal and vertical disparity error for
                   several offsets.
 	============================================================================
 */

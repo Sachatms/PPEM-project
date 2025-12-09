@@ -20,7 +20,7 @@
  * @param rawDisparity       Input image
  * @param filteredDisparity  Output filtered image
  */
-void medianFilter (int height , int width, int topDownBorderSize, 
+void medianFilter (int height , int width, int topDownBorderSize,
                    unsigned char *rawDisparity,
 				   unsigned char *filteredDisparity);
 

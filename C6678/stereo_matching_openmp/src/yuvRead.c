@@ -4,7 +4,10 @@
 	Author      : kdesnos & mpelcat, adapted for C6678
 	Version     : 1.0
 	Copyright   : CECILL-C
-	Description : YUV file reading for C6678
+	Description : YUV data reading for C6678 using embedded data arrays
+
+	NOTE: This version uses pre-allocated arrays that are loaded via CCS
+	      debugger using "Tools -> Load Memory" with the .dat files.
 	============================================================================
 */
 
@@ -16,74 +19,106 @@
 #include "clock.h"
 
 /*========================================================================
-   Global Variables
-   ======================================================================*/
-#define NB_PATH 2
+   Embedded YUV Data Arrays
 
-static char* path[] = { PATH_LEFT, PATH_RIGHT };
-static FILE* ptfile[NB_PATH] = { NULL, NULL };
-static int frame[NB_PATH] = { 0, 0 };
+   These arrays will be populated via CCS "Load Memory" feature:
+   1. Build and load the program
+   2. Pause execution at the beginning of main()
+   3. Use Tools -> Load Memory to load:
+      - BBB_3D_L.dat into yuvDataLeft  (address printed at startup)
+      - BBB_3D_R.dat into yuvDataRight (address printed at startup)
+   4. Resume execution
+
+   Array size calculation for NB_FRAME frames at 480x270 YUV 4:2:0:
+   Per frame: 480*270 + 480*270/4 + 480*270/4 = 129600 + 32400 + 32400 = 194400 bytes
+   ======================================================================*/
+
+/* Frame size in bytes (YUV 4:2:0) */
+#define FRAME_SIZE_Y    (WIDTH * HEIGHT)
+#define FRAME_SIZE_UV   (WIDTH * HEIGHT / 4)
+#define FRAME_SIZE      (FRAME_SIZE_Y + 2 * FRAME_SIZE_UV)
+
+/* Total data size for NB_FRAME frames */
+#define TOTAL_YUV_SIZE  (FRAME_SIZE * NB_FRAME)
+
+/*
+ * Embedded YUV data arrays - placed in external memory (DDR3)
+ * These are loaded via CCS debugger before running
+ */
+#pragma DATA_SECTION(yuvDataLeft, ".far:dataBufsLeft")
+#pragma DATA_ALIGN(yuvDataLeft, 8)
+unsigned char yuvDataLeft[TOTAL_YUV_SIZE];
+
+#pragma DATA_SECTION(yuvDataRight, ".far:dataBufsRight")
+#pragma DATA_ALIGN(yuvDataRight, 8)
+unsigned char yuvDataRight[TOTAL_YUV_SIZE];
+
+/* Frame counters */
+static int frame[2] = { 0, 0 };
+static int initialized[2] = { 0, 0 };
 
 /*========================================================================
    initReadYUV DEFINITION
    ======================================================================*/
 void initReadYUV(int id, int xSize, int ySize) {
-    long fsize;
-    long expectedSize;
-
-    if (id < 0 || id >= NB_PATH) {
-        printf("ERROR: Invalid YUV file id: %d\n", id);
+    if (id < 0 || id > 1) {
+        printf("ERROR: Invalid YUV id: %d\n", id);
         return;
     }
 
-    if ((ptfile[id] = fopen(path[id], "rb")) == NULL) {
-        printf("ERROR: Cannot open YUV file '%s'\n", path[id]);
-        printf("Make sure the dat/ folder with YUV files is in the CCS project directory.\n");
-        return;
+    /* Print address for CCS Load Memory */
+    if (id == 0) {
+        printf("\n=== LOAD DATA INSTRUCTIONS ===\n");
+        printf("Use CCS: Tools -> Load Memory\n");
+        printf("Load BBB_3D_L.dat to address: 0x%08X\n", (unsigned int)yuvDataLeft);
+        printf("Load BBB_3D_R.dat to address: 0x%08X\n", (unsigned int)yuvDataRight);
+        printf("Data size per file: %d bytes (%d frames)\n", TOTAL_YUV_SIZE, NB_FRAME);
+        printf("==============================\n\n");
     }
-
-    printf("Opened file '%s'\n", path[id]);
-
-    /* Obtain file size */
-    fseek(ptfile[id], 0, SEEK_END);
-    fsize = ftell(ptfile[id]);
-    rewind(ptfile[id]);
-
-    /* Check file size (YUV 4:2:0 format: Y + U/4 + V/4 = 1.5 bytes per pixel) */
-    expectedSize = (long)NB_FRAME * (xSize * ySize + xSize * ySize / 2);
-
-    if (fsize < expectedSize) {
-        printf("WARNING: YUV file size (%ld) smaller than expected (%ld)\n", fsize, expectedSize);
-        printf("File may contain fewer than %d frames.\n", NB_FRAME);
-    }
-
-    printf("YUV file '%s' ready (%ld bytes)\n", path[id], fsize);
 
     /* Reset frame counter */
     frame[id] = 0;
+    initialized[id] = 1;
 
     /* Initialize timing for first file only */
     if (id == 0) {
         startTiming(0);
     }
+
+    printf("YUV source %d ready: %d frames at %dx%d\n", id, NB_FRAME, xSize, ySize);
 }
 
 /*========================================================================
    readYUV DEFINITION
    ======================================================================*/
 void readYUV(int id, int xSize, int ySize, unsigned char *y, unsigned char *u, unsigned char *v) {
-    size_t res;
+    unsigned char* framePtr;
 
-    if (id < 0 || id >= NB_PATH || ptfile[id] == NULL) {
-        printf("ERROR: Invalid file handle for id %d\n", id);
+    if (id < 0 || id > 1 || !initialized[id]) {
+        printf("ERROR: YUV source %d not initialized\n", id);
         return;
     }
 
     /* Loop back to beginning if we've read all frames */
     if (frame[id] >= NB_FRAME) {
-        rewind(ptfile[id]);
         frame[id] = 0;
     }
+
+    /* Calculate pointer to current frame in the embedded data */
+    framePtr = (id == 0) ? yuvDataLeft : yuvDataRight;
+    framePtr += frame[id] * FRAME_SIZE;
+
+    /* Copy Y component (full resolution) */
+    memcpy(y, framePtr, FRAME_SIZE_Y);
+    framePtr += FRAME_SIZE_Y;
+
+    /* Copy U component (quarter resolution) */
+    memcpy(u, framePtr, FRAME_SIZE_UV);
+    framePtr += FRAME_SIZE_UV;
+
+    /* Copy V component (quarter resolution) */
+    memcpy(v, framePtr, FRAME_SIZE_UV);
+
     frame[id]++;
 
     /* FPS measurement (on right image only to avoid double counting) */
@@ -96,18 +131,5 @@ void readYUV(int id, int xSize, int ySize, unsigned char *y, unsigned char *u, u
         }
         firstMeasurement = 0;
         startTiming(0);
-    }
-
-    /* Read Y component (full resolution) */
-    res = fread(y, sizeof(char), xSize * ySize, ptfile[id]);
-
-    /* Read U component (quarter resolution for 4:2:0) */
-    res += fread(u, sizeof(char), xSize * ySize / 4, ptfile[id]);
-
-    /* Read V component (quarter resolution for 4:2:0) */
-    res += fread(v, sizeof(char), xSize * ySize / 4, ptfile[id]);
-
-    if (res != (size_t)(xSize * ySize + xSize * ySize / 2)) {
-        printf("WARNING: Read %zu bytes, expected %d\n", res, xSize * ySize + xSize * ySize / 2);
     }
 }

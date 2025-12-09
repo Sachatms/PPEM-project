@@ -4,7 +4,8 @@
 	Author      : kdesnos & mpelcat
 	Version     : 1.0
 	Copyright   : CECILL-C
-	Description : YUV file reading interface
+	Description : YUV data reading interface for C6678
+	              Uses embedded data arrays loaded via CCS debugger
 	============================================================================
 */
 
@@ -13,21 +14,28 @@
 
 #include "params.h"
 
+/*
+ * External references to embedded YUV data arrays.
+ * These arrays are defined in yuvRead.c and loaded via CCS "Load Memory".
+ */
+extern unsigned char yuvDataLeft[];
+extern unsigned char yuvDataRight[];
+
 /**
- * Initialize the YUV file reader.
- * Opens the YUV file and verifies its size.
+ * Initialize the YUV data reader.
+ * Prints the memory addresses for CCS Load Memory feature.
  *
- * @param id    File identifier (0=left, 1=right)
+ * @param id    Source identifier (0=left, 1=right)
  * @param xSize Width of the video frames
  * @param ySize Height of the video frames
  */
 void initReadYUV(int id, int xSize, int ySize);
 
 /**
- * Read a frame from the YUV file.
- * Reads Y, U, V components in 4:2:0 format.
+ * Read a frame from the embedded YUV data.
+ * Copies Y, U, V components from the embedded arrays.
  *
- * @param id    File identifier (0=left, 1=right)
+ * @param id    Source identifier (0=left, 1=right)
  * @param xSize Width of the frame
  * @param ySize Height of the frame
  * @param y     Output buffer for Y component (xSize * ySize bytes)

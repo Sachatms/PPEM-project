@@ -4,7 +4,7 @@
 	Author      : kdesnos, JZHAHG
 	Version     : 1.0
 	Copyright   : CeCILL-C, IETR, INSA Rennes
-	Description : Computation of the weights associated to the pixel of an rgb 
+	Description : Computation of the weights associated to the pixel of an rgb
 	              image.
 	============================================================================
 */
