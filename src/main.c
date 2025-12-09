@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <float.h>
+#include <errno.h>
+#include <limits.h>
+#include <omp.h>
 
 #include "params.h"
 #include "yuvRead.h"
@@ -19,9 +22,113 @@
 
 
 int stopThreads = 0;
+int CONFIG_THREADS = 0; /* nouvelle variable globale exposée via params.h */
 
-int main(void) {
+/* Parse a positive integer from string. Returns -1 on error. */
+static int parse_positive_int(const char* s) {
+	if (!s) return -1;
+	char* end = NULL;
+	errno = 0;
+	long v = strtol(s, &end, 10);
+	if (errno != 0 || end == s || *end != '\0' || v <= 0) return -1;
+	if (v > INT_MAX) return -1;
+	return (int)v;
+}
+
+
+
+int main(int argc, char** argv) {
 	printf("Stereo Matching App\n");
+
+	/* --- OpenMP thread configuration --- */
+	int cli_threads = -1;
+	int bench_frames = 0; // 0 = no benchmark mode
+	for (int i = 1; i < argc; ++i) {
+		const char* arg = argv[i];
+		if (strncmp(arg, "--threads=", 10) == 0) {
+			cli_threads = parse_positive_int(arg + 10);
+			if (cli_threads < 0) {
+				fprintf(stderr, "Invalid value for %s\n", arg);
+				cli_threads = -1;
+			}
+		}
+		else if (strcmp(arg, "--threads") == 0) {
+			if (i + 1 < argc) {
+				cli_threads = parse_positive_int(argv[++i]);
+				if (cli_threads < 0) {
+					fprintf(stderr, "Invalid value for --threads %s\n", argv[i]);
+					cli_threads = -1;
+				}
+			}
+			else {
+				fprintf(stderr, "--threads requires a numeric argument\n");
+			}
+		}
+	}
+
+	int env_threads = -1;
+	const char* env = getenv("OMP_NUM_THREADS");
+	if (env) {
+		env_threads = parse_positive_int(env);
+		if (env_threads < 0) {
+			fprintf(stderr, "Ignoring invalid OMP_NUM_THREADS=\"%s\"\n", env);
+			env_threads = -1;
+		}
+	}
+
+	int selected_threads;
+	if (cli_threads > 0) {
+		selected_threads = cli_threads;
+	}
+	else if (env_threads > 0) {
+		selected_threads = env_threads;
+	}
+	else {
+		selected_threads = omp_get_max_threads();
+	}
+
+	int nprocs = omp_get_num_procs();
+	if (selected_threads > nprocs) {
+		fprintf(stderr, "Requested %d threads > available processors %d, capping to %d\n",
+			selected_threads, nprocs, nprocs);
+		selected_threads = nprocs;
+	}
+	if (selected_threads <= 0) {
+		fprintf(stderr, "Invalid thread count %d, defaulting to 1\n", selected_threads);
+		selected_threads = 1;
+	}
+
+	omp_set_num_threads(selected_threads);
+	CONFIG_THREADS = selected_threads;
+
+	/* Print configuration and OpenMP info */
+#ifdef _OPENMP
+	printf("OpenMP: _OPENMP=%d\n", _OPENMP);
+#else
+	printf("OpenMP: _OPENMP macro not defined\n");
+#endif
+	printf("OpenMP config: requested=%d, omp_get_max_threads()=%d, omp_get_num_procs()=%d\n",
+		selected_threads, omp_get_max_threads(), nprocs);
+	if (env) printf("Environment OMP_NUM_THREADS=\"%s\"\n", env);
+
+	/* Verification test: run a simple parallel region and count actual threads */
+	volatile int seen = 0;
+#pragma omp parallel
+	{
+#pragma omp atomic
+		seen++;
+#pragma omp barrier
+#pragma omp single
+		{
+			printf("OpenMP verification: parallel region observed %d threads\n", seen);
+			if (seen != selected_threads) {
+				fprintf(stderr, "Warning: requested %d threads but observed %d threads\n",
+					selected_threads, seen);
+			}
+		}
+	}
+
+	/* --- End OpenMP infra --- */
 
 	// Open YUV Files (left & right)
 	initReadYUV(0, WIDTH, HEIGHT);
@@ -31,7 +138,12 @@ int main(void) {
 	displayRGBInit(0, HEIGHT, WIDTH);
 	displayRGBInit(1, HEIGHT, WIDTH);
 
-	while (!stopThreads) {
+	// benchmarking support: run limited number of frames if bench_frames>0
+	int frames_processed = 0;
+	double bench_t0 = 0.0;
+	if (bench_frames > 0) bench_t0 = omp_get_wtime();
+
+	while (!stopThreads && (bench_frames == 0 || frames_processed < bench_frames)) {
 
 		// Read images
 		static unsigned char yL[HEIGHT * WIDTH], uL[HEIGHT * WIDTH / 4], vL[HEIGHT * WIDTH / 4];
@@ -97,6 +209,13 @@ int main(void) {
 
 		// MD5
 		MD5_Update(HEIGHT * WIDTH * sizeof(char), filteredDepthMap);
+		frames_processed++;
+	}
+	if (bench_frames > 0) {
+		double bench_t1 = omp_get_wtime();
+		double total = bench_t1 - bench_t0;
+		printf("Benchmark: frames=%d total_time=%.6f s avg_ms_per_frame=%.3f FPS=%.2f\n",
+			frames_processed, total, (total * 1000.0) / frames_processed, frames_processed / total);
 	}
 
 	return 0;

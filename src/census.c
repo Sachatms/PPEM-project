@@ -11,6 +11,7 @@
 
 #include "census.h"
 #include <string.h>
+#include <omp.h>
 
 
 void census(int height, int width, float *gray, unsigned char *cen){

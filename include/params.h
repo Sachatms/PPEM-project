@@ -34,5 +34,9 @@ typedef unsigned char uchar;
 #define PATH_LEFT_FULL PROJECT_ROOT_PATH "/" PATH_LEFT
 #define PATH_RIGHT_FULL PROJECT_ROOT_PATH "/" PATH_RIGHT
 
+/* Configured thread count (set by main). If d'autres modules doivent
+   connaître le nombre de threads configuré, utiliser cette variable. */
+extern int CONFIG_THREADS;
+
 
 #endif
