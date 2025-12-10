@@ -32,13 +32,13 @@ void disparitySelect(int height, int width, int scale,
 	{
 		int i;
 		int rowOffset = j * width;
-		
+
 		for (i = 0; i < width; i++)
 		{
 			int idx = rowOffset + i;
 			float aggCost = aggregatedDisparity[idx];
 			float best = bestCost[idx];
-			
+
 			/* If the cost of the aggregated disparity is lower, keep the new
 			   disparity as the best, else, keep the current. */
 			if (aggCost < best) {

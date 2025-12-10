@@ -15,7 +15,7 @@
 #define max(x,y) (((x)<(y))?(y):(x))
 
 /* Optimized median of 9 using sorting network (fewer comparisons) */
-static inline void sort2(unsigned char *a, unsigned char *b) {
+static void sort2(unsigned char *a, unsigned char *b) {
 	if (*a > *b) {
 		unsigned char t = *a;
 		*a = *b;
@@ -23,7 +23,7 @@ static inline void sort2(unsigned char *a, unsigned char *b) {
 	}
 }
 
-static inline unsigned char median9(unsigned char *p) {
+static unsigned char median9(unsigned char *p) {
 	/* Sorting network for 9 elements to find median */
 	sort2(&p[1], &p[2]); sort2(&p[4], &p[5]); sort2(&p[7], &p[8]);
 	sort2(&p[0], &p[1]); sort2(&p[3], &p[4]); sort2(&p[6], &p[7]);
@@ -48,7 +48,7 @@ void medianFilter(int height, int width, int topDownBorderSize,
 	{
 		int i;
 		int outRowOffset = (j - topDownBorderSize) * width;
-		
+
 		for(i = 0; i < width; i++)
 		{
 			unsigned char pixels[9];
@@ -59,7 +59,7 @@ void medianFilter(int height, int width, int topDownBorderSize,
 			{
 				int y = min(max(j + l, 0), height - 1);
 				int rowOff = y * width;
-				
+
 				for(k = -1; k <= 1; k++)
 				{
 					int x = min(max(i + k, 0), width - 1);
@@ -67,8 +67,36 @@ void medianFilter(int height, int width, int topDownBorderSize,
 				}
 			}
 
-			/* Find median using optimized sorting network */
-			filteredDisparity[outRowOffset + i] = median9(pixels);
+		/* Find median using optimized sorting network */
+		filteredDisparity[outRowOffset + i] = median9(pixels);
 		}
 	}
+}
+
+/* quickSort implementation for header compatibility (not used internally) */
+void quickSort(int startIdx, int endIdx, unsigned char *values)
+{
+	int i, j;
+	unsigned char pivot, temp;
+
+	if (startIdx >= endIdx) return;
+
+	pivot = values[(startIdx + endIdx) / 2];
+	i = startIdx;
+	j = endIdx;
+
+	while (i <= j) {
+		while (values[i] < pivot) i++;
+		while (values[j] > pivot) j--;
+		if (i <= j) {
+			temp = values[i];
+			values[i] = values[j];
+			values[j] = temp;
+			i++;
+			j--;
+		}
+	}
+
+	if (startIdx < j) quickSort(startIdx, j, values);
+	if (i < endIdx) quickSort(i, endIdx, values);
 }

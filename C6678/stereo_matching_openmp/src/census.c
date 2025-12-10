@@ -1,80 +1,77 @@
-/**
- * census.c - Census Transform (DSP Optimized)
- * 
- * Optimizations applied:
- * - Row-based parallelization for better cache locality
- * - Restrict pointers for compiler optimization
- * - Inlined comparison logic
- * - Minimized boundary checks
- */
+/*
+	============================================================================
+	Name        : census.c
+	Author      : kdesnos
+	Version     : 1.2 - OpenMP parallelized + optimized for C6678
+	Copyright   : CeCILL-C, IETR, INSA Rennes
+	Description : Census Transform for stereo matching
+	============================================================================
+*/
 
-#include <params.h>
-
-#ifdef _TMS320C6X
-    #include <ti/runtime/openmp/omp.h>
-#else
-    #include <omp.h>
-#endif
+#include "census.h"
+#include <ti/runtime/openmp/omp.h>
 
 /**
  * Census transform with 3x3 window - computes 8-bit census signature
  * Each bit represents comparison of center pixel with neighbor
  * 
- * @param gray  Input grayscale image (HEIGHT x WIDTH)
- * @param cen   Output census signature (HEIGHT x WIDTH)
+ * Signature matches header: census(int height, int width, float *gray, unsigned char *cen)
  */
-void census(const unsigned char * restrict gray, 
-            unsigned char * restrict cen)
+void census(int height, int width, float *gray, unsigned char *cen)
 {
+    int x, y;
+    
     /* Clear borders (row 0, row HEIGHT-1, col 0, col WIDTH-1) */
     /* Top and bottom rows */
     #pragma omp parallel for schedule(static)
-    for (int x = 0; x < WIDTH; x++) {
+    for (x = 0; x < width; x++) {
         cen[x] = 0;                              /* Row 0 */
-        cen[(HEIGHT - 1) * WIDTH + x] = 0;       /* Row HEIGHT-1 */
+        cen[(height - 1) * width + x] = 0;       /* Row HEIGHT-1 */
     }
     
     /* Left and right columns */
     #pragma omp parallel for schedule(static)
-    for (int y = 0; y < HEIGHT; y++) {
-        cen[y * WIDTH] = 0;                      /* Column 0 */
-        cen[y * WIDTH + (WIDTH - 1)] = 0;        /* Column WIDTH-1 */
+    for (y = 0; y < height; y++) {
+        cen[y * width] = 0;                      /* Column 0 */
+        cen[y * width + (width - 1)] = 0;        /* Column WIDTH-1 */
     }
     
-    /* Process interior pixels (rows 1 to HEIGHT-2, cols 1 to WIDTH-2) */
+    /* Process interior pixels (rows 1 to height-2, cols 1 to width-2) */
     /* Row-based parallelization for better cache locality */
     #pragma omp parallel for schedule(static)
-    for (int y = 1; y < HEIGHT - 1; y++) {
-        const int rowOffset = y * WIDTH;
-        const int rowAbove = (y - 1) * WIDTH;
-        const int rowBelow = (y + 1) * WIDTH;
+    for (y = 1; y < height - 1; y++) {
+        int xi;
+        int rowOffset = y * width;
+        int rowAbove = (y - 1) * width;
+        int rowBelow = (y + 1) * width;
         
-        for (int x = 1; x < WIDTH - 1; x++) {
-            const unsigned char centerVal = gray[rowOffset + x];
+        for (xi = 1; xi < width - 1; xi++) {
+            /* Cast float to unsigned char for comparison */
+            unsigned char centerVal = (unsigned char)gray[rowOffset + xi];
             unsigned char signature = 0;
             
             /* 3x3 window comparison, center pixel vs 8 neighbors */
-            /* Bit layout: 
+            /* Bit layout:
              * bit7: top-left    bit6: top-center    bit5: top-right
              * bit4: mid-left                        bit3: mid-right
              * bit2: bot-left    bit1: bot-center    bit0: bot-right
              */
-            
+
             /* Top row */
-            if (gray[rowAbove + x - 1] >= centerVal) signature |= 0x80; /* bit 7 */
-            if (gray[rowAbove + x    ] >= centerVal) signature |= 0x40; /* bit 6 */
-            if (gray[rowAbove + x + 1] >= centerVal) signature |= 0x20; /* bit 5 */
-            
+            if ((unsigned char)gray[rowAbove + xi - 1] >= centerVal) signature |= 0x80; /* bit 7 */
+            if ((unsigned char)gray[rowAbove + xi    ] >= centerVal) signature |= 0x40; /* bit 6 */
+            if ((unsigned char)gray[rowAbove + xi + 1] >= centerVal) signature |= 0x20; /* bit 5 */
+
             /* Middle row (skip center) */
-            if (gray[rowOffset + x - 1] >= centerVal) signature |= 0x10; /* bit 4 */
-            if (gray[rowOffset + x + 1] >= centerVal) signature |= 0x08; /* bit 3 */
-            
+            if ((unsigned char)gray[rowOffset + xi - 1] >= centerVal) signature |= 0x10; /* bit 4 */
+            if ((unsigned char)gray[rowOffset + xi + 1] >= centerVal) signature |= 0x08; /* bit 3 */
+
             /* Bottom row */
-            if (gray[rowBelow + x - 1] >= centerVal) signature |= 0x04; /* bit 2 */
-            if (gray[rowBelow + x    ] >= centerVal) signature |= 0x02; /* bit 1 */
-            if (gray[rowBelow + x + 1] >= centerVal) signature |= 0x01; /* bit 0 */
-            
-            cen[rowOffset + x] = signature;
+            if ((unsigned char)gray[rowBelow + xi - 1] >= centerVal) signature |= 0x04; /* bit 2 */
+            if ((unsigned char)gray[rowBelow + xi    ] >= centerVal) signature |= 0x02; /* bit 1 */
+            if ((unsigned char)gray[rowBelow + xi + 1] >= centerVal) signature |= 0x01; /* bit 0 */
+
+            cen[rowOffset + xi] = signature;
         }
     }
 }

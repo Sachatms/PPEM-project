@@ -29,7 +29,7 @@
 #include "md5.h"
 #include "clock.h"
 
-/* Number of OpenMP threads (C6678 has 8 cores) 
+/* Number of OpenMP threads (C6678 has 8 cores)
  * Note: Memory-bound workload may not scale with all 8 cores
  * Test with 1, 2, 4, 8 to find optimal */
 #ifndef NUM_THREADS
@@ -44,13 +44,13 @@ int main(void) {
 
 	/* Configure OpenMP thread count */
 	omp_set_num_threads(NUM_THREADS);
-	
+
 	/* Force OpenMP runtime initialization and verify threads */
 	#pragma omp parallel
 	{
 		#pragma omp atomic
 		actualThreads++;
-		
+
 		#pragma omp master
 		{
 			nthreads = omp_get_num_threads();

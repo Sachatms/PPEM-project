@@ -22,6 +22,7 @@ void aggregateCost (int height, int width, int nbIterations,
                     float * restrict aggregatedDisparity)
 {
     int offsetIdx;
+    int j;
 
     /* For each of the offset, do the horizontal and vertical aggregation */
     for(offsetIdx = 0; offsetIdx < 2*nbIterations; offsetIdx++)
@@ -42,13 +43,14 @@ void aggregateCost (int height, int width, int nbIterations,
 
         /* OpenMP parallelization: process rows for better cache locality */
         #pragma omp parallel for schedule(static)
-        for(int j = 0; j < height; j++)
+        for(j = 0; j < height; j++)
         {
+            int i;
             int rowOffset = j * width;
             int jMinus = max(j - vOffset, 0);
             int jPlus = min(j + vOffset, height - 1);
             
-            for(int i = 0; i < width; i++)
+            for(i = 0; i < width; i++)
             {
                 int pixelIdx = rowOffset + i;
                 int iMinus = max(i - hOffset, 0);

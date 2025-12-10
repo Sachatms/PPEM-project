@@ -15,8 +15,8 @@ Description : Computation of the costs associated to the pixels of the
 
 #define min(x,y) (((x)<(y))?(x):(y))
 
-/* Inline hamming cost for better performance */
-static inline unsigned char hammingCost(unsigned char a, unsigned char b)
+/* Static inline version for internal use - avoids function call overhead */
+static unsigned char hammingCostLocal(unsigned char a, unsigned char b)
 {
     unsigned char diffBit = a ^ b;
     /* Fast popcount using bit manipulation */
@@ -26,6 +26,12 @@ static inline unsigned char hammingCost(unsigned char a, unsigned char b)
         diffBit >>= 1;
     }
     return res;
+}
+
+/* External function matching header declaration */
+unsigned char hammingCost(unsigned char *a, unsigned char *b)
+{
+    return hammingCostLocal(*a, *b);
 }
 
 void costConstruction (int height, int width, float truncValue,
@@ -44,7 +50,7 @@ void costConstruction (int height, int width, float truncValue,
     {
         int i;
         int rowOffset = j * width;
-        
+
         for(i = 0; i < width; i++)
         {
             int leftPxlIdx = rowOffset + i;
@@ -52,13 +58,13 @@ void costConstruction (int height, int width, float truncValue,
             int rightPxlIdx = rowOffset + rightX;
 
             /* Inline hamming cost calculation */
-            unsigned char censusCost = hammingCost(cenL[leftPxlIdx], cenR[rightPxlIdx]);
+            unsigned char censusCost = hammingCostLocal(cenL[leftPxlIdx], cenR[rightPxlIdx]);
 
             /* Combination method 3 -- weight addition */
             float grayDiff = grayL[leftPxlIdx] - grayR[rightPxlIdx];
             float absDiff = grayDiff < 0 ? -grayDiff : grayDiff;  /* Faster than fabs */
             float truncDiff = absDiff < truncValue ? absDiff : truncValue;
-            
+
             disparityError[leftPxlIdx] = truncDiff + censusCost * 0.2f;  /* Multiply faster than divide */
         }
     }
