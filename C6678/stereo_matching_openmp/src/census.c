@@ -1,58 +1,80 @@
-/*
-	============================================================================
-	Name        : census.c
-	Author      : kdesnos, JZHAHG
-	Version     : 1.1 - OpenMP parallelized for C6678
-	Copyright   : CeCILL-C, IETR, INSA Rennes
-	Description : Computation of the census corresponding to an input gray image
-	============================================================================
-*/
+/**
+ * census.c - Census Transform (DSP Optimized)
+ * 
+ * Optimizations applied:
+ * - Row-based parallelization for better cache locality
+ * - Restrict pointers for compiler optimization
+ * - Inlined comparison logic
+ * - Minimized boundary checks
+ */
 
-#include "census.h"
-#include <string.h>
-#include <ti/runtime/openmp/omp.h>
+#include <params.h>
 
-void census(int height, int width, float *gray, unsigned char *cen){
-    int idx;
-    int innerHeight = height - 2;
-    int innerWidth = width - 2;
-    int totalInnerPixels = innerHeight * innerWidth;
+#ifdef _TMS320C6X
+    #include <ti/runtime/openmp/omp.h>
+#else
+    #include <omp.h>
+#endif
 
-    /* Fill the 1st and last lines with 0 */
-    memset(cen, 0, width*sizeof(char));
-    memset(cen+(height-1)*width, 0, width*sizeof(char));
-
-    /* Fill first and last column of each row with 0 */
-    int j;
-    for(j=1; j<height-1; j++){
-        cen[j*width] = 0;
-        cen[(j+1)*width-1] = 0;
-    }
-
-    /* OpenMP parallelization: inner pixels are independent
-     * Using schedule(static) for deterministic results */
+/**
+ * Census transform with 3x3 window - computes 8-bit census signature
+ * Each bit represents comparison of center pixel with neighbor
+ * 
+ * @param gray  Input grayscale image (HEIGHT x WIDTH)
+ * @param cen   Output census signature (HEIGHT x WIDTH)
+ */
+void census(const unsigned char * restrict gray, 
+            unsigned char * restrict cen)
+{
+    /* Clear borders (row 0, row HEIGHT-1, col 0, col WIDTH-1) */
+    /* Top and bottom rows */
     #pragma omp parallel for schedule(static)
-    for(idx = 0; idx < totalInnerPixels; idx++){
-        int i = 1 + (idx % innerWidth);
-        int jj = 1 + (idx / innerWidth);
-        int k, l;
-        unsigned char signature = 0x00;
-        int bit = 7;
-
-        /* For each pixel, compute its census signature with
-           a 3x3 pixels window around it. */
-        for(l = -1; l <= 1; l++){
-            for(k=-1 ; k<=1; k++){
-                /* In the 8 bit signature, a bit is set
-                   to 1 if the compared pixel is inferior to the current. */
-                if(k!=0 || l!=0){
-                    if(gray[jj*width+i] > gray[(jj+l)*width+(i+k)]){
-                        signature |= 1 << bit;
-                    }
-                    bit--;
-                }
-            }
+    for (int x = 0; x < WIDTH; x++) {
+        cen[x] = 0;                              /* Row 0 */
+        cen[(HEIGHT - 1) * WIDTH + x] = 0;       /* Row HEIGHT-1 */
+    }
+    
+    /* Left and right columns */
+    #pragma omp parallel for schedule(static)
+    for (int y = 0; y < HEIGHT; y++) {
+        cen[y * WIDTH] = 0;                      /* Column 0 */
+        cen[y * WIDTH + (WIDTH - 1)] = 0;        /* Column WIDTH-1 */
+    }
+    
+    /* Process interior pixels (rows 1 to HEIGHT-2, cols 1 to WIDTH-2) */
+    /* Row-based parallelization for better cache locality */
+    #pragma omp parallel for schedule(static)
+    for (int y = 1; y < HEIGHT - 1; y++) {
+        const int rowOffset = y * WIDTH;
+        const int rowAbove = (y - 1) * WIDTH;
+        const int rowBelow = (y + 1) * WIDTH;
+        
+        for (int x = 1; x < WIDTH - 1; x++) {
+            const unsigned char centerVal = gray[rowOffset + x];
+            unsigned char signature = 0;
+            
+            /* 3x3 window comparison, center pixel vs 8 neighbors */
+            /* Bit layout: 
+             * bit7: top-left    bit6: top-center    bit5: top-right
+             * bit4: mid-left                        bit3: mid-right
+             * bit2: bot-left    bit1: bot-center    bit0: bot-right
+             */
+            
+            /* Top row */
+            if (gray[rowAbove + x - 1] >= centerVal) signature |= 0x80; /* bit 7 */
+            if (gray[rowAbove + x    ] >= centerVal) signature |= 0x40; /* bit 6 */
+            if (gray[rowAbove + x + 1] >= centerVal) signature |= 0x20; /* bit 5 */
+            
+            /* Middle row (skip center) */
+            if (gray[rowOffset + x - 1] >= centerVal) signature |= 0x10; /* bit 4 */
+            if (gray[rowOffset + x + 1] >= centerVal) signature |= 0x08; /* bit 3 */
+            
+            /* Bottom row */
+            if (gray[rowBelow + x - 1] >= centerVal) signature |= 0x04; /* bit 2 */
+            if (gray[rowBelow + x    ] >= centerVal) signature |= 0x02; /* bit 1 */
+            if (gray[rowBelow + x + 1] >= centerVal) signature |= 0x01; /* bit 0 */
+            
+            cen[rowOffset + x] = signature;
         }
-        cen[jj*width+i] = signature;
     }
 }

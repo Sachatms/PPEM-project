@@ -29,9 +29,11 @@
 #include "md5.h"
 #include "clock.h"
 
-/* Number of OpenMP threads (C6678 has 8 cores) */
+/* Number of OpenMP threads (C6678 has 8 cores) 
+ * Note: Memory-bound workload may not scale with all 8 cores
+ * Test with 1, 2, 4, 8 to find optimal */
 #ifndef NUM_THREADS
-#define NUM_THREADS 8
+#define NUM_THREADS 2  /* Try 2 or 4 for memory-bound workloads */
 #endif
 
 int main(void) {
