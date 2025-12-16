@@ -43,7 +43,7 @@ void aggregateCost (int height , int width, int nbIterations,
 
         /* OpenMP parallelization: parallelize the inner pixel loop
          * Using guided schedule for better load balancing */
-		#pragma omp parallel for schedule(guided) nowait
+		#pragma omp parallel for schedule(guided)
 		for(idx = 0; idx < totalPixels; idx++){
 			int i = idx % width;
 			int j = idx / width;
