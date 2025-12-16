@@ -1,135 +1,73 @@
 /*
 	============================================================================
 	Name        : yuvRead.c
-	Author      : kdesnos & mpelcat, adapted for C6678
-	Version     : 1.0
+	Author      : kdesnos & mpelcat
+	Version     : 1.1
 	Copyright   : CECILL-C
-	Description : YUV data reading for C6678 using embedded data arrays
-
-	NOTE: This version uses pre-allocated arrays that are loaded via CCS
-	      debugger using "Tools -> Load Memory" with the .dat files.
+	Description : C6x readYUV using embedded data arrays
 	============================================================================
 */
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-
 #include "yuvRead.h"
-#include "clock.h"
+#include <xdc/runtime/System.h>
+#include <string.h>
+#include <xdc/runtime/Timestamp.h>
+#include <xdc/runtime/Types.h>
 
-/*========================================================================
-   Embedded YUV Data Arrays
+#define PICSIZE (WIDTH * HEIGHT * 3 / 2)
 
-   These arrays will be populated via CCS "Load Memory" feature:
-   1. Build and load the program
-   2. Pause execution at the beginning of main()
-   3. Use Tools -> Load Memory to load:
-      - BBB_3D_L.dat into yuvDataLeft  (address printed at startup)
-      - BBB_3D_R.dat into yuvDataRight (address printed at startup)
-   4. Resume execution
-
-   Array size calculation for NB_FRAME frames at 480x270 YUV 4:2:0:
-   Per frame: 480*270 + 480*270/4 + 480*270/4 = 129600 + 32400 + 32400 = 194400 bytes
-   ======================================================================*/
-
-/* Frame size in bytes (YUV 4:2:0) */
-#define FRAME_SIZE_Y    (WIDTH * HEIGHT)
-#define FRAME_SIZE_UV   (WIDTH * HEIGHT / 4)
-#define FRAME_SIZE      (FRAME_SIZE_Y + 2 * FRAME_SIZE_UV)
-
-/* Total data size for NB_FRAME frames */
-#define TOTAL_YUV_SIZE  (FRAME_SIZE * NB_FRAME)
-
-/*
- * Embedded YUV data arrays - placed in external memory (DDR3)
- * These are loaded via CCS debugger before running
+/* Reserving memory for the input sequences (left and right cameras)
+ * This memory should be loaded by the Load function of CCS
+ * Forcing in DDR3 using .myInputVideoMem section
  */
-#pragma DATA_SECTION(yuvDataLeft, ".far:dataBufsLeft")
-#pragma DATA_ALIGN(yuvDataLeft, 8)
-unsigned char yuvDataLeft[TOTAL_YUV_SIZE];
+#pragma DATA_SECTION(input_sequence_left, ".myInputVideoMem");
+static unsigned char input_sequence_left[PICSIZE * NB_FRAMES];
 
-#pragma DATA_SECTION(yuvDataRight, ".far:dataBufsRight")
-#pragma DATA_ALIGN(yuvDataRight, 8)
-unsigned char yuvDataRight[TOTAL_YUV_SIZE];
+#pragma DATA_SECTION(input_sequence_right, ".myInputVideoMem");
+static unsigned char input_sequence_right[PICSIZE * NB_FRAMES];
 
-/* Frame counters */
-static int frame[2] = { 0, 0 };
-static int initialized[2] = { 0, 0 };
+static int currentFrameIndex[2] = {0, 0};
 
 /*========================================================================
    initReadYUV DEFINITION
    ======================================================================*/
 void initReadYUV(int id, int xSize, int ySize) {
-    if (id < 0 || id > 1) {
-        printf("ERROR: Invalid YUV id: %d\n", id);
-        return;
-    }
-
-    /* Print address for CCS Load Memory */
-    if (id == 0) {
-        printf("\n=== LOAD DATA INSTRUCTIONS ===\n");
-        printf("Use CCS: Tools -> Load Memory\n");
-        printf("Load BBB_3D_L.dat to address: 0x%08X\n", (unsigned int)yuvDataLeft);
-        printf("Load BBB_3D_R.dat to address: 0x%08X\n", (unsigned int)yuvDataRight);
-        printf("Data size per file: %d bytes (%d frames)\n", TOTAL_YUV_SIZE, NB_FRAME);
-        printf("==============================\n\n");
-    }
-
-    /* Reset frame counter */
-    frame[id] = 0;
-    initialized[id] = 1;
-
-    /* Initialize timing for first file only */
-    if (id == 0) {
-        startTiming(0);
-    }
-
-    printf("YUV source %d ready: %d frames at %dx%d\n", id, NB_FRAME, xSize, ySize);
+	if (id < 0 || id > 1) {
+		System_printf("ERROR: Invalid YUV id: %d\n", id);
+		return;
+	}
+	currentFrameIndex[id] = 0;
 }
 
 /*========================================================================
    readYUV DEFINITION
    ======================================================================*/
 void readYUV(int id, int xSize, int ySize, unsigned char *y, unsigned char *u, unsigned char *v) {
-    unsigned char* framePtr;
+	static int frameCounter = 0;
+	static unsigned int time = 0;
+	unsigned int now;
 
-    if (id < 0 || id > 1 || !initialized[id]) {
-        printf("ERROR: YUV source %d not initialized\n", id);
-        return;
-    }
+	unsigned char* input_sequence = (id == 0) ? input_sequence_left : input_sequence_right;
+	unsigned char* input_y = input_sequence + currentFrameIndex[id] * PICSIZE;
+	unsigned char* input_u = input_y + ySize * xSize;
+	unsigned char* input_v = input_u + (ySize * xSize / 4);
 
-    /* Loop back to beginning if we've read all frames */
-    if (frame[id] >= NB_FRAME) {
-        frame[id] = 0;
-    }
+	/* FPS measurement every 10 frames (on right camera to avoid double counting) */
+	if (id == 1) {
+		if (frameCounter == 0) {
+			now = Timestamp_get32();
+			unsigned int delta = (now - time) / 10;
+			float fps = 1000000000.0 / (float)delta;
+			System_printf("fps: %f\n", fps);
+			time = Timestamp_get32();
+		}
+		frameCounter = (frameCounter + 1) % 10;
+	}
 
-    /* Calculate pointer to current frame in the embedded data */
-    framePtr = (id == 0) ? yuvDataLeft : yuvDataRight;
-    framePtr += frame[id] * FRAME_SIZE;
+	memcpy(y, input_y, ySize * xSize * sizeof(char));
+	memcpy(u, input_u, ySize * xSize * sizeof(char) / 4);
+	memcpy(v, input_v, ySize * xSize * sizeof(char) / 4);
 
-    /* Copy Y component (full resolution) */
-    memcpy(y, framePtr, FRAME_SIZE_Y);
-    framePtr += FRAME_SIZE_Y;
-
-    /* Copy U component (quarter resolution) */
-    memcpy(u, framePtr, FRAME_SIZE_UV);
-    framePtr += FRAME_SIZE_UV;
-
-    /* Copy V component (quarter resolution) */
-    memcpy(v, framePtr, FRAME_SIZE_UV);
-
-    frame[id]++;
-
-    /* FPS measurement (on right image only to avoid double counting) */
-    if (id == 1 && (frame[id] % FPS) == 0 && frame[id] > 0) {
-        static int firstMeasurement = 1;
-        if (!firstMeasurement) {
-            unsigned int time = stopTiming(0);
-            printf("\nPerformance: %d frames in %u us - %.2f fps\n",
-                   FPS, time, ((float)FPS) / (float)time * 1000000.0f);
-        }
-        firstMeasurement = 0;
-        startTiming(0);
-    }
+	currentFrameIndex[id]++;
+	currentFrameIndex[id] = currentFrameIndex[id] % NB_FRAMES;
 }

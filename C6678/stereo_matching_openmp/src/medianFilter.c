@@ -2,7 +2,7 @@
 	============================================================================
 	Name        : medianFilter.c
 	Author      : kdesnos
-	Version     : 1.2 - OpenMP parallelized + optimized for C6678
+	Version     : 1.1 - OpenMP parallelized for C6678
 	Copyright   : CeCILL-C, IETR, INSA Rennes
 	Description : Application of a 3x3 median filter to an image.
 	============================================================================
@@ -14,89 +14,65 @@
 #define min(x,y) (((x)<(y))?(x):(y))
 #define max(x,y) (((x)<(y))?(y):(x))
 
-/* Optimized median of 9 using sorting network (fewer comparisons) */
-static void sort2(unsigned char *a, unsigned char *b) {
-	if (*a > *b) {
-		unsigned char t = *a;
-		*a = *b;
-		*b = t;
+void swap(unsigned char *a, unsigned char *b){
+	unsigned char buf = *a;
+	*a=*b;
+	*b=buf;
+}
+
+void quickSortPartition(int startIdx, int endIdx, int *pivotIdx, unsigned char *values){
+	int idx;
+	int swapIdx = startIdx;
+	swap(values+*pivotIdx,values+endIdx);
+	for(idx = startIdx; idx < endIdx; idx++){
+		if(values[idx]<=values[endIdx]){
+			swap(values+swapIdx,values+idx);
+			swapIdx++;
+		}
+	}
+	swap(values+swapIdx, values+endIdx);
+	*pivotIdx = swapIdx;
+}
+
+void quickSort(int startIdx, int endIdx, unsigned char *values){
+	if(startIdx<endIdx){
+		int pivotIdx = startIdx;
+		quickSortPartition(startIdx, endIdx, &pivotIdx, values);
+		quickSort(startIdx,pivotIdx-1,values);
+		quickSort(pivotIdx+1,endIdx,values);
 	}
 }
 
-static unsigned char median9(unsigned char *p) {
-	/* Sorting network for 9 elements to find median */
-	sort2(&p[1], &p[2]); sort2(&p[4], &p[5]); sort2(&p[7], &p[8]);
-	sort2(&p[0], &p[1]); sort2(&p[3], &p[4]); sort2(&p[6], &p[7]);
-	sort2(&p[1], &p[2]); sort2(&p[4], &p[5]); sort2(&p[7], &p[8]);
-	sort2(&p[0], &p[3]); sort2(&p[5], &p[8]); sort2(&p[4], &p[7]);
-	sort2(&p[3], &p[6]); sort2(&p[1], &p[4]); sort2(&p[2], &p[5]);
-	sort2(&p[4], &p[7]); sort2(&p[4], &p[2]); sort2(&p[6], &p[4]);
-	sort2(&p[4], &p[2]);
-	return p[4];
-}
-
-void medianFilter(int height, int width, int topDownBorderSize,
-                  unsigned char * restrict rawDisparity,
-                  unsigned char * restrict filteredDisparity)
+void medianFilter (int height , int width, int topDownBorderSize,
+                   unsigned char *rawDisparity,
+				   unsigned char *filteredDisparity)
 {
-	int j;
-	int effectiveHeight = height - topDownBorderSize;
+	int idx;
+	int effectiveHeight = height - 2 * topDownBorderSize;
+	int totalPixels = effectiveHeight * width;
 
-	/* OpenMP parallelization: process rows for better cache locality */
+	/* OpenMP parallelization: each output pixel is independent
+	 * Using schedule(static) for deterministic results
+	 * Note: pixels array is private to each thread */
 	#pragma omp parallel for schedule(static)
-	for(j = topDownBorderSize; j < effectiveHeight; j++)
-	{
-		int i;
-		int outRowOffset = (j - topDownBorderSize) * width;
+	for(idx = 0; idx < totalPixels; idx++){
+		int i = idx % width;
+		int j = topDownBorderSize + (idx / width);
+		int k, l;
+		unsigned char pixels[9];
 
-		for(i = 0; i < width; i++)
-		{
-			unsigned char pixels[9];
-			int k, l, idx = 0;
-
-			/* Get the 9 pixels in the 3x3 window */
-			for(l = -1; l <= 1; l++)
-			{
-				int y = min(max(j + l, 0), height - 1);
-				int rowOff = y * width;
-
-				for(k = -1; k <= 1; k++)
-				{
-					int x = min(max(i + k, 0), width - 1);
-					pixels[idx++] = rawDisparity[rowOff + x];
-				}
+		/* Output pixel is the median of a 3x3 window
+		   Get the 9 pixels */
+		for(l=-1;l<=1;l++){
+			int y = min(max(j+l,0),height-1);
+			for(k=-1;k<=1;k++){
+				int x = min(max(i+k,0),width-1);
+				pixels[(l+1)*3+k+1] = rawDisparity[y*width+x];
 			}
-
-		/* Find median using optimized sorting network */
-		filteredDisparity[outRowOffset + i] = median9(pixels);
 		}
+
+		/* Sort the 9 values */
+		quickSort(0, 8, pixels);
+		filteredDisparity[(j-topDownBorderSize)*width+i] = pixels[9/2];
 	}
-}
-
-/* quickSort implementation for header compatibility (not used internally) */
-void quickSort(int startIdx, int endIdx, unsigned char *values)
-{
-	int i, j;
-	unsigned char pivot, temp;
-
-	if (startIdx >= endIdx) return;
-
-	pivot = values[(startIdx + endIdx) / 2];
-	i = startIdx;
-	j = endIdx;
-
-	while (i <= j) {
-		while (values[i] < pivot) i++;
-		while (values[j] > pivot) j--;
-		if (i <= j) {
-			temp = values[i];
-			values[i] = values[j];
-			values[j] = temp;
-			i++;
-			j--;
-		}
-	}
-
-	if (startIdx < j) quickSort(startIdx, j, values);
-	if (i < endIdx) quickSort(i, endIdx, values);
 }
