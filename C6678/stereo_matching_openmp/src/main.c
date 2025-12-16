@@ -114,18 +114,10 @@ int main(void) {
 			               weightsVert + idx * (3 * HEIGHT * WIDTH));
 		}
 
-		/* Find for each pixel, the disparity level minimizing the aggregated costs */
+	/* Find for each pixel, the disparity level minimizing the aggregated costs */
 		static unsigned char depthMap[HEIGHT * WIDTH];
 		memset(depthMap, 0, HEIGHT * WIDTH * sizeof(char));
 		static float bestCost[HEIGHT * WIDTH];
-
-		/* Initialize bestCost to max float for each frame */
-		{
-			int i;
-			for (i = 0; i < HEIGHT * WIDTH; i++) {
-				bestCost[i] = FLT_MAX;
-			}
-		}
 
 		/* For each degree of disparity */
 		char disp;
@@ -133,7 +125,7 @@ int main(void) {
 
 			/* Cost construction */
 			static float dispError[HEIGHT * WIDTH];
-			costConstruction(HEIGHT, WIDTH, 12.0f /*truncValue*/, &disp,
+			costConstruction(HEIGHT, WIDTH, 12 /*truncValue*/, &disp,
 			                 grayL, grayR, cenL, cenR, dispError);
 
 			/* Aggregate costs */
@@ -141,12 +133,15 @@ int main(void) {
 			aggregateCost(HEIGHT, WIDTH, NB_ITERATIONS, dispError, offsets,
 			              weightsHor, weightsVert, aggregatedDisparityCost);
 
-			/* Compare the current disparity cost to best so far */
-			disparitySelect(HEIGHT, WIDTH, 12, MIN_DISPARITY, &disp,
-			                aggregatedDisparityCost, bestCost, depthMap);
-		}
-
-		/* Apply median filter on result */
+			if (disp == MIN_DISPARITY) {
+				memcpy(bestCost, aggregatedDisparityCost, HEIGHT * WIDTH * sizeof(float));
+			}
+			else {
+				/* Compare the current disparity cost to previous ones */
+				disparitySelect(HEIGHT, WIDTH, 12, MIN_DISPARITY, &disp,
+				                aggregatedDisparityCost, bestCost, depthMap);
+			}
+		}		/* Apply median filter on result */
 		static unsigned char filteredDepthMap[HEIGHT * WIDTH];
 		medianFilter(HEIGHT, WIDTH, 1, depthMap, filteredDepthMap);
 
