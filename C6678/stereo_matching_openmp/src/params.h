@@ -26,7 +26,7 @@
 #define NB_FRAME 5
 
 /* FPS measurement interval - should be a divisor of NB_FRAME */
-#define FPS 10
+#define FPS 5
 
 typedef unsigned char uchar;
 

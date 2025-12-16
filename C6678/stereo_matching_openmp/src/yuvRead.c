@@ -13,6 +13,7 @@
 #include <string.h>
 #include <xdc/runtime/Timestamp.h>
 #include <xdc/runtime/Types.h>
+#include <stdio.h>
 
 #define PICSIZE (WIDTH * HEIGHT * 3 / 2)
 
@@ -39,12 +40,12 @@ void initReadYUV(int id, int xSize, int ySize) {
 
 	/* Print address for CCS Load Memory */
 	if (id == 0) {
-		System_printf("\n=== LOAD DATA INSTRUCTIONS ===\n");
-		System_printf("Use CCS: Tools -> Load Memory\n");
-		System_printf("Load BBB_3D_L.dat to address: 0x%08X\n", (unsigned int)input_sequence_left);
-		System_printf("Load BBB_3D_R.dat to address: 0x%08X\n", (unsigned int)input_sequence_right);
-		System_printf("Data size per file: %d bytes (%d frames)\n", PICSIZE * NB_FRAMES, NB_FRAMES);
-		System_printf("==============================\n\n");
+		printf("\n=== LOAD DATA INSTRUCTIONS ===\n");
+		printf("Use CCS: Tools -> Load Memory\n");
+		printf("Load BBB_3D_L.dat to address: 0x%08X\n", (unsigned int)input_sequence_left);
+		printf("Load BBB_3D_R.dat to address: 0x%08X\n", (unsigned int)input_sequence_right);
+		printf("Data size per file: %d bytes (%d frames)\n", PICSIZE * NB_FRAMES, NB_FRAMES);
+		printf("==============================\n\n");
 	}
 
 	currentFrameIndex[id] = 0;
