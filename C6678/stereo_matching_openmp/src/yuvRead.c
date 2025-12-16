@@ -65,7 +65,7 @@ void readYUV(int id, int xSize, int ySize, unsigned char *y, unsigned char *u, u
 	unsigned char* input_u = input_y + ySize * xSize;
 	unsigned char* input_v = input_u + (ySize * xSize / 4);
 
-	/* FPS measurement every 10 frames (on right camera to avoid double counting) */
+	/* FPS measurement every 5 frames (on right camera to avoid double counting) */
 	if (id == 1) {
 		if (frameCounter == 0) {
 			now = Timestamp_get32();
@@ -74,7 +74,7 @@ void readYUV(int id, int xSize, int ySize, unsigned char *y, unsigned char *u, u
 			System_printf("fps: %f\n", fps);
 			time = Timestamp_get32();
 		}
-		frameCounter = (frameCounter + 1) % 10;
+		frameCounter = (frameCounter + 1) % FPS;
 	}
 
 	memcpy(y, input_y, ySize * xSize * sizeof(char));
