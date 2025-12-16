@@ -49,7 +49,7 @@ void aggregateCost (int height, int width, int nbIterations,
             int rowOffset = j * width;
             int jMinus = max(j - vOffset, 0);
             int jPlus = min(j + vOffset, height - 1);
-            
+
             for(i = 0; i < width; i++)
             {
                 int pixelIdx = rowOffset + i;

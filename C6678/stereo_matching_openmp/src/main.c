@@ -119,6 +119,14 @@ int main(void) {
 		memset(depthMap, 0, HEIGHT * WIDTH * sizeof(char));
 		static float bestCost[HEIGHT * WIDTH];
 
+		/* Initialize bestCost to max float for each frame */
+		{
+			int i;
+			for (i = 0; i < HEIGHT * WIDTH; i++) {
+				bestCost[i] = FLT_MAX;
+			}
+		}
+
 		/* For each degree of disparity */
 		char disp;
 		for (disp = MIN_DISPARITY; disp <= MAX_DISPARITY; disp++) {
@@ -133,14 +141,9 @@ int main(void) {
 			aggregateCost(HEIGHT, WIDTH, NB_ITERATIONS, dispError, offsets,
 			              weightsHor, weightsVert, aggregatedDisparityCost);
 
-			if (disp == MIN_DISPARITY) {
-				memcpy(bestCost, aggregatedDisparityCost, HEIGHT * WIDTH * sizeof(float));
-			}
-			else {
-				/* Compare the current disparity cost to previous ones */
-				disparitySelect(HEIGHT, WIDTH, 12, MIN_DISPARITY, &disp,
-				                aggregatedDisparityCost, bestCost, depthMap);
-			}
+			/* Compare the current disparity cost to best so far */
+			disparitySelect(HEIGHT, WIDTH, 12, MIN_DISPARITY, &disp,
+			                aggregatedDisparityCost, bestCost, depthMap);
 		}
 
 		/* Apply median filter on result */

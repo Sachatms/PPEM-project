@@ -14,13 +14,13 @@
 /**
  * Census transform with 3x3 window - computes 8-bit census signature
  * Each bit represents comparison of center pixel with neighbor
- * 
+ *
  * Signature matches header: census(int height, int width, float *gray, unsigned char *cen)
  */
 void census(int height, int width, float *gray, unsigned char *cen)
 {
     int x, y;
-    
+
     /* Clear borders (row 0, row HEIGHT-1, col 0, col WIDTH-1) */
     /* Top and bottom rows */
     #pragma omp parallel for schedule(static)
@@ -28,14 +28,14 @@ void census(int height, int width, float *gray, unsigned char *cen)
         cen[x] = 0;                              /* Row 0 */
         cen[(height - 1) * width + x] = 0;       /* Row HEIGHT-1 */
     }
-    
+
     /* Left and right columns */
     #pragma omp parallel for schedule(static)
     for (y = 0; y < height; y++) {
         cen[y * width] = 0;                      /* Column 0 */
         cen[y * width + (width - 1)] = 0;        /* Column WIDTH-1 */
     }
-    
+
     /* Process interior pixels (rows 1 to height-2, cols 1 to width-2) */
     /* Row-based parallelization for better cache locality */
     #pragma omp parallel for schedule(static)
@@ -44,12 +44,12 @@ void census(int height, int width, float *gray, unsigned char *cen)
         int rowOffset = y * width;
         int rowAbove = (y - 1) * width;
         int rowBelow = (y + 1) * width;
-        
+
         for (xi = 1; xi < width - 1; xi++) {
             /* Cast float to unsigned char for comparison */
             unsigned char centerVal = (unsigned char)gray[rowOffset + xi];
             unsigned char signature = 0;
-            
+
             /* 3x3 window comparison, center pixel vs 8 neighbors */
             /* Bit layout:
              * bit7: top-left    bit6: top-center    bit5: top-right
