@@ -13,7 +13,7 @@
 
 #include "params.h"
 
-#define NB_FRAMES 10
+#define NB_FRAMES 5
 
 /**
 * Initialize the readYUV actor.
