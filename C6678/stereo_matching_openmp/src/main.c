@@ -28,12 +28,22 @@
 #include <ti/runtime/openmp/omp.h>
 
 #ifndef NUM_THREADS
-#define NUM_THREADS 1
+#define NUM_THREADS 4
 #endif
+
+/* Cache configuration registers */
+#define CACHE_L2CFG (*((volatile unsigned int *)0x01840000))
+#define CACHE_L1PCFG (*((volatile unsigned int *)0x01840020))
+#define CACHE_L1DCFG (*((volatile unsigned int *)0x01840040))
 
 int main(void) {
 	int nthreads;
 	int actualThreads = 0;
+
+	/* Configure caches: L2 = 256KB cache + 256KB SRAM (mode 2) */
+	CACHE_L2CFG = 2;   /* 15/16 mode: 256KB cache, 256KB SRAM */
+	CACHE_L1PCFG = 4;  /* L1P = 32KB (max) */
+	CACHE_L1DCFG = 4;  /* L1D = 32KB (max) */
 
 	/* Configure OpenMP thread count */
 	omp_set_num_threads(NUM_THREADS);

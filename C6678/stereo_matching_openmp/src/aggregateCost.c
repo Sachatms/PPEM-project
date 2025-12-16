@@ -42,8 +42,8 @@ void aggregateCost (int height , int width, int nbIterations,
 		float *dest = (offsetIdx%2 == 0)? aggregatedDisparity: disparityError;
 
         /* OpenMP parallelization: parallelize the inner pixel loop
-         * Using schedule(static) for deterministic results */
-		#pragma omp parallel for schedule(static)
+         * Using guided schedule for better load balancing */
+		#pragma omp parallel for schedule(guided)
 		for(idx = 0; idx < totalPixels; idx++){
 			int i = idx % width;
 			int j = idx / width;

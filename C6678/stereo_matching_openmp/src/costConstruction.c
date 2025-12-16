@@ -44,8 +44,8 @@ void costConstruction (int height, int width, float truncValue,
     char disp = *disparity;
 
     /* OpenMP parallelization: each thread processes a chunk of pixels
-     * Using schedule(static) for deterministic results (MD5 validation) */
-    #pragma omp parallel for schedule(static)
+     * Using guided schedule for better load balancing while maintaining determinism */
+    #pragma omp parallel for schedule(guided)
     for(idx = 0; idx < totalPixels; idx++)
     {
         unsigned char censusCost;
