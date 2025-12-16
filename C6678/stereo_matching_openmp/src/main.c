@@ -25,8 +25,39 @@
 #include "medianFilter.h"
 #include "md5.h"
 
+#include <ti/runtime/openmp/omp.h>
+
+#ifndef NUM_THREADS
+#define NUM_THREADS 1
+#endif
+
 int main(void) {
-	printf("Stereo Matching App\n");
+	int nthreads;
+	int actualThreads = 0;
+
+	/* Configure OpenMP thread count */
+	omp_set_num_threads(NUM_THREADS);
+
+	/* Force OpenMP runtime initialization and verify threads */
+	#pragma omp parallel
+	{
+		#pragma omp atomic
+		actualThreads++;
+
+		#pragma omp master
+		{
+			nthreads = omp_get_num_threads();
+		}
+	}
+
+	printf("==============================================\n");
+	printf("Stereo Matching App - C6678 OpenMP Version\n");
+	printf("==============================================\n");
+	printf("Image size: %d x %d\n", WIDTH, HEIGHT);
+	printf("Disparity range: [%d, %d]\n", MIN_DISPARITY, MAX_DISPARITY);
+	printf("Number of frames: %d\n", NB_FRAME);
+	printf("OpenMP threads: %d (requested: %d, actual: %d)\n", nthreads, NUM_THREADS, actualThreads);
+	printf("==============================================\n\n");
 
 	// Open YUV Files (left & right)
 	initReadYUV(0, WIDTH, HEIGHT);
