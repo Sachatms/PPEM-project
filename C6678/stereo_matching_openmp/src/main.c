@@ -55,24 +55,24 @@ int main(void) {
 		census(HEIGHT, WIDTH, grayL, cenL);
 		census(HEIGHT, WIDTH, grayR, cenR);
 
-		// Pre-compute weights for offset aggregation
-		int offsets[NB_ITERATIONS];
-		static float weightsHor[NB_ITERATIONS * HEIGHT * WIDTH * 3], weightsVert[NB_ITERATIONS * HEIGHT * WIDTH * 3];
-		offsetGen(NB_ITERATIONS, offsets);
-		for (unsigned idx = 0; idx < NB_ITERATIONS; idx++) {
-			computeWeights(HEIGHT, WIDTH, 0, offsets + idx, rgbL, weightsHor + idx * (3 * HEIGHT * WIDTH));
-			computeWeights(HEIGHT, WIDTH, 1, offsets + idx, rgbL, weightsVert + idx * (3 * HEIGHT * WIDTH));
-		}
+	// Pre-compute weights for offset aggregation
+	int offsets[NB_ITERATIONS];
+	static float weightsHor[NB_ITERATIONS * HEIGHT * WIDTH * 3], weightsVert[NB_ITERATIONS * HEIGHT * WIDTH * 3];
+	offsetGen(NB_ITERATIONS, offsets);
+	unsigned int idx;
+	for (idx = 0; idx < NB_ITERATIONS; idx++) {
+		computeWeights(HEIGHT, WIDTH, 0, offsets + idx, rgbL, weightsHor + idx * (3 * HEIGHT * WIDTH));
+		computeWeights(HEIGHT, WIDTH, 1, offsets + idx, rgbL, weightsVert + idx * (3 * HEIGHT * WIDTH));
+	}
 
-		// Find for each pixel, the disparity level minimizing the aggregated costs.
-		static unsigned char depthMap[HEIGHT * WIDTH];
-		memset(depthMap, 0, HEIGHT * WIDTH*sizeof(char));
-		static float bestCost[HEIGHT * WIDTH];
+	// Find for each pixel, the disparity level minimizing the aggregated costs.
+	static unsigned char depthMap[HEIGHT * WIDTH];
+	memset(depthMap, 0, HEIGHT * WIDTH*sizeof(char));
+	static float bestCost[HEIGHT * WIDTH];
 
-		// For each degree of disparity
-		for (char disp = MIN_DISPARITY; disp <= MAX_DISPARITY; disp++) {
-
-			// Cost construction
+	// For each degree of disparity
+	char disp;
+	for (disp = MIN_DISPARITY; disp <= MAX_DISPARITY; disp++) {			// Cost construction
 			static float dispError[HEIGHT * WIDTH];
 			costConstruction(HEIGHT, WIDTH, 12 /*Magic number*/, &disp, grayL, grayR, cenL, cenR, dispError);
 
