@@ -45,8 +45,8 @@ void costConstruction (int height, int width, float truncValue,
 
     /* OpenMP parallelization: each thread processes a chunk of pixels
      * Static schedule with optimized chunk size for DSP L2 cache (64-byte cache lines)
-     * Chunk size 256 balances cache locality and load distribution across 8 cores */
-    #pragma omp parallel for schedule(static, 256)
+     * Chunk size 128 improves cache locality (smaller working set per thread) */
+    #pragma omp parallel for schedule(static, 128)
     for(idx = 0; idx < totalPixels; idx++)
     {
         unsigned char censusCost;

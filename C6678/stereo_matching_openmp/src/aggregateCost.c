@@ -43,8 +43,8 @@ void aggregateCost (int height , int width, int nbIterations,
 
         /* OpenMP parallelization: parallelize the inner pixel loop
          * Static schedule for deterministic behavior and better cache locality on DSP
-         * Chunk size 512 optimized for 8-core C6678 with shared DDR3 bandwidth */
-		#pragma omp parallel for schedule(static, 512)
+         * Chunk size 256 reduces DDR3 bandwidth contention across 8 cores */
+		#pragma omp parallel for schedule(static, 256)
 		for(idx = 0; idx < totalPixels; idx++){
 			int i = idx % width;
 			int j = idx / width;
@@ -65,6 +65,12 @@ void aggregateCost (int height , int width, int nbIterations,
 		}
     }
 
-    /* Copy the result in the output buffer */
-    memcpy(aggregatedDisparity, disparityError, height*width*sizeof(float));
+    /* Result is in disparityError after even number of iterations
+     * Only copy if needed (when iterations are odd) */
+    if ((2*nbIterations) % 2 == 1) {
+        #pragma omp parallel for schedule(static, 512)
+        for(int i = 0; i < totalPixels; i++) {
+            aggregatedDisparity[i] = disparityError[i];
+        }
+    }
 }
