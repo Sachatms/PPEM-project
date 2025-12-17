@@ -65,13 +65,6 @@ void aggregateCost (int height , int width, int nbIterations,
 		}
     }
 
-    /* Result is in disparityError after even number of iterations
-     * Only copy if needed (when iterations are odd) */
-    if ((2*nbIterations) % 2 == 1) {
-        int i;
-        #pragma omp parallel for schedule(static, 512)
-        for(i = 0; i < totalPixels; i++) {
-            aggregatedDisparity[i] = disparityError[i];
-        }
-    }
+    /* Copy the result in the output buffer */
+    memcpy(aggregatedDisparity, disparityError, height*width*sizeof(float));
 }

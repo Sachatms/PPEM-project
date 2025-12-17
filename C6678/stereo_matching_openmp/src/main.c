@@ -111,14 +111,8 @@ int main(void) {
 
 	// Find for each pixel, the disparity level minimizing the aggregated costs.
 	static unsigned char depthMap[HEIGHT * WIDTH];
+	memset(depthMap, 0, HEIGHT * WIDTH*sizeof(char));
 	static float bestCost[HEIGHT * WIDTH];
-	int i;
-
-	/* Initialize depthMap once - parallel memset for better performance */
-	#pragma omp parallel for schedule(static, 1024)
-	for (i = 0; i < HEIGHT * WIDTH; i++) {
-		depthMap[i] = 0;
-	}
 
 	// For each degree of disparity
 	char disp;
