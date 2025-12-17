@@ -52,8 +52,9 @@ void medianFilter (int height , int width, int topDownBorderSize,
 	int totalPixels = effectiveHeight * width;
 
 	/* OpenMP parallelization: each output pixel is independent
-	 * Note: pixels array is private to each thread */
-	#pragma omp parallel for schedule(static)
+	 * Note: pixels array is private to each thread
+	 * Chunk size 256 for good cache locality (sorting 9 elements per pixel) */
+	#pragma omp parallel for schedule(static, 256)
 	for(idx = 0; idx < totalPixels; idx++){
 		int i = idx % width;
 		int j = topDownBorderSize + (idx / width);

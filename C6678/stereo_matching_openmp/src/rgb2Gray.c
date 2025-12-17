@@ -24,8 +24,9 @@ void rgb2Gray(int size, unsigned char *rgb, float *gray)
 {
     int i;
 
-    /* Parallelization over all pixels */
-    #pragma omp parallel for schedule(static)
+    /* Parallelization over all pixels
+     * Chunk size 512 for efficient memory bandwidth utilization */
+    #pragma omp parallel for schedule(static, 512)
     for (i = 0; i < size; i++) {
         int rgbIdx = i * 3;
 

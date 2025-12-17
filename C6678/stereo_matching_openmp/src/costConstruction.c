@@ -44,8 +44,9 @@ void costConstruction (int height, int width, float truncValue,
     char disp = *disparity;
 
     /* OpenMP parallelization: each thread processes a chunk of pixels
-     * Using dynamic schedule with chunk size for better load balancing */
-    #pragma omp parallel for schedule(dynamic, 512)
+     * Static schedule with optimized chunk size for DSP L2 cache (64-byte cache lines)
+     * Chunk size 256 balances cache locality and load distribution across 8 cores */
+    #pragma omp parallel for schedule(static, 256)
     for(idx = 0; idx < totalPixels; idx++)
     {
         unsigned char censusCost;

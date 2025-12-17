@@ -27,8 +27,9 @@ void disparitySelect(int height, int width, int scale,
 	int totalPixels = height * width;
 	char disp = *disparity;
 
-	/* OpenMP parallelization: each pixel is independent */
-	#pragma omp parallel for schedule(static)
+	/* OpenMP parallelization: each pixel is independent
+	 * Chunk size 512 for balanced workload across 8 cores */
+	#pragma omp parallel for schedule(static, 512)
 	for (idx = 0; idx < totalPixels; idx++)
 	{
 		/* If the cost of the aggregated disparity is lower, keep the new

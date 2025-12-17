@@ -30,8 +30,9 @@ void census(int height, int width, float *gray, unsigned char *cen){
     }
 
     /* OpenMP parallelization: inner pixels are independent
-     * guided schedule for better load balancing */
-    #pragma omp parallel for schedule(guided)
+     * Static schedule with chunk size for better cache locality on DSP
+     * Chunk size 384 balances workload across 8 cores */
+    #pragma omp parallel for schedule(static, 384)
     for(idx = 0; idx < totalInnerPixels; idx++){
         int i = 1 + (idx % innerWidth);
         int jj = 1 + (idx / innerWidth);

@@ -101,6 +101,9 @@ int main(void) {
 	static float weightsHor[NB_ITERATIONS * HEIGHT * WIDTH * 3], weightsVert[NB_ITERATIONS * HEIGHT * WIDTH * 3];
 	offsetGen(NB_ITERATIONS, offsets);
 	unsigned int idx;
+	/* Parallelize weight computation across iterations (embarrassingly parallel)
+	 * Each iteration processes independent offset, safe to parallelize */
+	#pragma omp parallel for schedule(static)
 	for (idx = 0; idx < NB_ITERATIONS; idx++) {
 		computeWeights(HEIGHT, WIDTH, 0, offsets + idx, rgbL, weightsHor + idx * (3 * HEIGHT * WIDTH));
 		computeWeights(HEIGHT, WIDTH, 1, offsets + idx, rgbL, weightsVert + idx * (3 * HEIGHT * WIDTH));
