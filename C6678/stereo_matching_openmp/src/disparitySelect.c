@@ -2,7 +2,7 @@
 	============================================================================
 	Name        : disparitySelect.c
 	Author      : kdesnos
-	Version     : 1.0
+	Version     : 1.1 - OpenMP parallelized for C6678
 	Copyright   : CeCILL-C, IETR, INSA Rennes
 	Description : Iterative selection of the disparity with the lowest cost for
 				  each pixel in order to construct the depth map.
@@ -11,6 +11,7 @@
 
 #include "disparitySelect.h"
 #include <string.h>
+#include <ti/runtime/openmp/omp.h>
 
 #define min(x,y) (((x)<(y))?(x):(y))
 #define max(x,y) (((x)<(y))?(y):(x))
@@ -22,20 +23,21 @@ void disparitySelect(int height, int width, int scale,
 	float* bestCost,
 	unsigned char* result)
 {
-	int i, j;
+	int idx;
+	int totalPixels = height * width;
+	char disp = *disparity;
 
-	/* Scan the pixels of the aggregated disparity */
-	for (j = 0; j < height; j++)
+	/* OpenMP parallelization: each pixel is independent
+	 * Chunk size 256 for better cache locality (reduces chunk size for memory-intensive ops) */
+	#pragma omp parallel for schedule(static, 256)
+	for (idx = 0; idx < totalPixels; idx++)
 	{
-		for (i = 0; i < width; i++)
-		{
-			/* If the cost of the aggregated disparity is lower, keep the new
-			   disparity as the best, else, keep the current. */
-			result[j * width + i] =
-				(aggregatedDisparity[j * width + i] < bestCost[j * width + i]) ?
-				scale * ((*disparity) - minDisparity) : result[j * width + i];
+		/* If the cost of the aggregated disparity is lower, keep the new
+		   disparity as the best, else, keep the current. */
+		result[idx] =
+			(aggregatedDisparity[idx] < bestCost[idx]) ?
+			scale * (disp - minDisparity) : result[idx];
 
-			bestCost[j * width + i] = min(aggregatedDisparity[j * width + i], bestCost[j * width + i]);
-		}
+		bestCost[idx] = min(aggregatedDisparity[idx], bestCost[idx]);
 	}
 }

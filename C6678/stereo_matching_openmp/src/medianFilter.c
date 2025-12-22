@@ -2,13 +2,14 @@
 	============================================================================
 	Name        : medianFilter.c
 	Author      : kdesnos
-	Version     : 1.0
+	Version     : 1.1 - OpenMP parallelized for C6678
 	Copyright   : CeCILL-C, IETR, INSA Rennes
 	Description : Application of a 3x3 median filter to an image.
 	============================================================================
 */
 
 #include "medianFilter.h"
+#include <ti/runtime/openmp/omp.h>
 
 #define min(x,y) (((x)<(y))?(x):(y))
 #define max(x,y) (((x)<(y))?(y):(x))
@@ -46,27 +47,32 @@ void medianFilter (int height , int width, int topDownBorderSize,
                    unsigned char *rawDisparity,
 				   unsigned char *filteredDisparity)
 {
-	int i,j;
-	int k,l;
+	int idx;
+	int effectiveHeight = height - 2 * topDownBorderSize;
+	int totalPixels = effectiveHeight * width;
 
-	/* Process pixels one by one */
-	for(j=topDownBorderSize; j< height-topDownBorderSize; j++){
-		for(i=0;i<width;i++){
-			unsigned char pixels[9];
+	/* OpenMP parallelization: each output pixel is independent
+	 * Note: pixels array is private to each thread
+	 * Chunk size 256 for good cache locality (sorting 9 elements per pixel) */
+	#pragma omp parallel for schedule(static, 256)
+	for(idx = 0; idx < totalPixels; idx++){
+		int i = idx % width;
+		int j = topDownBorderSize + (idx / width);
+		int k, l;
+		unsigned char pixels[9];
 
-			/* Output pixel is the median of a 3x3 window
-			   Get the 9 pixels */
-			for(l=-1;l<=1;l++){
-				int y = min(max(j+l,0),height-1);
-				for(k=-1;k<=1;k++){
-					int x = min(max(i+k,0),width-1);
-					pixels[(l+1)*3+k+1] = rawDisparity[y*width+x];
-				}
+		/* Output pixel is the median of a 3x3 window
+		   Get the 9 pixels */
+		for(l=-1;l<=1;l++){
+			int y = min(max(j+l,0),height-1);
+			for(k=-1;k<=1;k++){
+				int x = min(max(i+k,0),width-1);
+				pixels[(l+1)*3+k+1] = rawDisparity[y*width+x];
 			}
-
-			/* Sort the 9 values */
-			quickSort(0, 8, pixels);
-			filteredDisparity[(j-topDownBorderSize)*width+i] = pixels[9/2];
 		}
+
+		/* Sort the 9 values */
+		quickSort(0, 8, pixels);
+		filteredDisparity[(j-topDownBorderSize)*width+i] = pixels[9/2];
 	}
 }

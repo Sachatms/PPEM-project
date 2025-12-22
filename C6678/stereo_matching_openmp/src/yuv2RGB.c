@@ -2,13 +2,14 @@
 	============================================================================
 	Name        : yuv2RGB.c
 	Author      : kdesnos
-	Version     : 1.0
+	Version     : 1.1 - OpenMP parallelized for C6678
 	Copyright   : CECILL-C, IETR, INSA Rennes
 	Description : Transformation of an YUV image into a RGB image.
 	============================================================================
 */
 
 #include "yuv2RGB.h"
+#include <ti/runtime/openmp/omp.h>
 
 #define YUV2RGB_COEF_R  1.13983
 #define YUV2RGB_COEF_G1 0.39465
@@ -19,6 +20,8 @@
 
 void yuv2rgb(int width, int height, unsigned char *y, unsigned char *u, unsigned char *v, unsigned char *rgb){
     int i,j;
+    /* OpenMP parallelization: collapse nested loops for better parallelization efficiency */
+    #pragma omp parallel for collapse(2) schedule(static)
     for(i=0; i< height; i++){
         for(j=0; j < width; j++){
 			int idx = i*width + j;

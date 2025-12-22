@@ -2,7 +2,7 @@
 	============================================================================
 	Name        : computeWeights.c
 	Author      : kdesnos, JZHAHG
-	Version     : 1.0
+	Version     : 1.1 - OpenMP parallelized for C6678
 	Copyright   : CeCILL-C, IETR, INSA Rennes
 	Description : Computation of the weights associated to the pixel of an rgb
 	              image.
@@ -11,6 +11,7 @@
 
 #include <math.h>
 #include "computeWeights.h"
+#include <ti/runtime/openmp/omp.h>
 
 #define R_gamaC (float) 1.0/16.0f
 #define min(x,y) (((x)<(y))?(x):(y))
@@ -29,6 +30,8 @@ void computeWeights (int height , int width, int horOrVert,
     float distanceCoeff = -(float)(*offset)/36.0f;
 
     /* Scan the pixels of the rgb image */
+    /* OpenMP parallelization: collapse nested loops, static schedule for deterministic behavior */
+    #pragma omp parallel for collapse(2) schedule(static) private(i, j)
     for(j=0; j<height; j++)
     {
         for(i=0; i<width; i++)

@@ -2,7 +2,7 @@
 	============================================================================
 	Name        : costConstruction.c
 	Author      : kdesnos, JZHAHG
-	Version     : 1.0
+	Version     : 1.1 - OpenMP parallelized for C6678
 	Copyright   : CeCILL-C, IETR, INSA Rennes
 	Description : Computation of the costs associated to the pixels of the
 	              stereo pair for a given disparity
@@ -11,6 +11,7 @@
 
 #include "costConstruction.h"
 #include <math.h>
+#include <ti/runtime/openmp/omp.h>
 
 #define min(x,y) (((x)<(y))?(x):(y))
 
@@ -38,22 +39,26 @@ void costConstruction (int height, int width, float truncValue,
                        unsigned char *cenL, unsigned char *cenR,
                        float *disparityError)
 {
-    int i,j;
+    int idx;
+    int totalPixels = height * width;
+    char disp = *disparity;
 
-    /* For each disparity, scan the pixels of the left image */
-    for(j=0; j<height; j++)
+    /* OpenMP parallelization: each thread processes a chunk of pixels
+     * Static schedule with optimized chunk size for DSP L2 cache (64-byte cache lines)
+     * Chunk size 128 improves cache locality (smaller working set per thread) */
+    #pragma omp parallel for schedule(static, 128)
+    for(idx = 0; idx < totalPixels; idx++)
     {
-        for(i=0; i<width; i++)
-        {
-            unsigned char censusCost;
-            int leftPxlIdx = j*width + i;
-            int rightPxlIdx = j*width + (((i-*disparity)>0)?i-*disparity:0);
+        unsigned char censusCost;
+        int i = idx % width;
+        int j = idx / width;
+        int leftPxlIdx = idx;
+        int rightPxlIdx = j * width + (((i - disp) > 0) ? i - disp : 0);
 
-            /* Get the cost from the census signatures */
-            censusCost = hammingCost(cenL+leftPxlIdx, cenR+rightPxlIdx);
+        /* Get the cost from the census signatures */
+        censusCost = hammingCost(cenL + leftPxlIdx, cenR + rightPxlIdx);
 
-            /* Combination method 3 -- weight addition */
-            disparityError[leftPxlIdx] = min((float)fabs((float)(grayL[leftPxlIdx]-grayR[rightPxlIdx])),truncValue) + censusCost/5.0f;
-        }
+        /* Combination method 3 -- weight addition */
+        disparityError[leftPxlIdx] = min((float)fabs((float)(grayL[leftPxlIdx] - grayR[rightPxlIdx])), truncValue) + censusCost / 5.0f;
     }
 }
