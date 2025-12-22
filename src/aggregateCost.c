@@ -5,7 +5,7 @@
 	Author      : JZHAHG
 	Version     : 1.0
 	Copyright   : CeCILL-C, IETR, INSA Rennes
-	Description : Aggregate the horizontal and vertical disparity error for 
+	Description : Aggregate the horizontal and vertical disparity error for
                   several offsets.
 	============================================================================
 */
@@ -13,7 +13,6 @@
 #include "aggregateCost.h"
 #include <string.h>
 #include <omp.h>
-
 
 #define min(x,y) (((x)<(y))?(x):(y))
 #define max(x,y) (((x)<(y))?(y):(x))
@@ -33,15 +32,15 @@ void aggregateCost (int height , int width, int nbIterations,
 		// Even iterations are vertical, Odd are horizontal
 		int hOffset = (offsetIdx%2 == 1)? offset : 0;
 		int vOffset = (offsetIdx%2 == 0)? offset : 0;
-		
+
 		// Select the weights corresponding to the current offset
 		float *weights = (offsetIdx%2 == 0)? vWeights : hWeights;
 		int weightIdx = (offsetIdx/2) * (3*height*width);
 
 		// Select the computation destination and source
 		// Even iteration from disparityError and Odd from aggregated Disparity
-		float *src = (offsetIdx%2 == 0)? disparityError: aggregatedDisparity; 
-		float *dest = (offsetIdx%2 == 0)? aggregatedDisparity: disparityError; 
+		float *src = (offsetIdx%2 == 0)? disparityError: aggregatedDisparity;
+		float *dest = (offsetIdx%2 == 0)? aggregatedDisparity: disparityError;
 
         // Scan the image pixels
 #pragma omp parallel for collapse(2) private(i,j) schedule(static)
@@ -49,7 +48,7 @@ void aggregateCost (int height , int width, int nbIterations,
 			for(i=0; i<width; i++){
 				float costM, costP, costO;
 				float weightM, weightP, weightO;
-				
+
 				// Get the costs of the pixels
 				costO = src[j*width+i];
 				costM = src[max(j-vOffset,0)*width+max(i-hOffset,0)];
@@ -59,7 +58,7 @@ void aggregateCost (int height , int width, int nbIterations,
 				weightO = weights[weightIdx + 3*(j*width+i)];
 				weightM = weights[weightIdx + 3*(j*width+i)+1];
 				weightP = weights[weightIdx + 3*(j*width+i)+2];
-				
+
 				dest[j*width+i] = weightO*costO+weightM*costM+weightP*costP;
 			}
 		}

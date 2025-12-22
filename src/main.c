@@ -22,7 +22,7 @@
 
 
 int stopThreads = 0;
-int CONFIG_THREADS = 0; /* nouvelle variable globale exposée via params.h */
+int CONFIG_THREADS = 0; /* new global variable exposed via params.h */
 
 /* Parse a positive integer from string. Returns -1 on error. */
 static int parse_positive_int(const char* s) {
@@ -34,8 +34,6 @@ static int parse_positive_int(const char* s) {
 	if (v > INT_MAX) return -1;
 	return (int)v;
 }
-
-
 
 int main(int argc, char** argv) {
 	printf("Stereo Matching App\n");
